@@ -1,4 +1,4 @@
-import { normalizeEmail, type User } from "@lydoc/domain";
+import { normalizeEmail, type User, type UserRole } from "@lydoc/domain";
 import type { PasswordHasher } from "../../ports/password-hasher";
 import type { UserRepository } from "../../ports/user-repository";
 
@@ -8,7 +8,7 @@ export class RegisterUser {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async execute(input: { email: string; password: string }): Promise<User> {
+  async execute(input: { email: string; password: string; role?: UserRole }): Promise<User> {
     const email = normalizeEmail(input.email);
 
     if (input.password.length < 10) {
@@ -24,7 +24,7 @@ export class RegisterUser {
     return this.users.create({
       email,
       passwordHash: await this.passwordHasher.hash(input.password),
+      ...(input.role ? { role: input.role } : {}),
     });
   }
 }
-

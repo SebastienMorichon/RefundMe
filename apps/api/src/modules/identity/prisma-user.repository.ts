@@ -16,6 +16,7 @@ export class PrismaUserRepository implements UserRepository {
         data: {
           email: input.email,
           passwordHash: input.passwordHash,
+          ...(input.role ? { role: input.role } : {}),
         },
       });
     } catch (error) {

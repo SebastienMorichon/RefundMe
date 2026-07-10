@@ -26,6 +26,12 @@ Ne jamais reutiliser les valeurs de `.env.example` en production. Les secrets de
 - Definir `TRUST_PROXY=true` uniquement lorsque l'API est derriere un proxy de confiance qui renseigne correctement l'adresse IP cliente.
 - Les endpoints d'inscription, de connexion et de depot sont limites a 20 requetes par minute et par adresse IP sur une instance. Un deploiement multi-instance devra remplacer ce limiteur local par Redis.
 
+## Premier administrateur
+
+Definir `ADMIN_EMAILS` avec une ou plusieurs adresses separees par des virgules avant de creer les comptes concernes. Lors de leur inscription, ces adresses recoivent le role `ADMIN`; toutes les autres restent des comptes utilisateurs. Ne jamais exposer cette variable au navigateur.
+
+Exemple local : `ADMIN_EMAILS=admin@lydoc.fr`. Apres connexion, l'ecran `/admin/rules` permet de deposer un PDF de reglement, saisir les informations relues et l'approuver. Un reglement non approuve ne doit jamais etre utilise pour creer un dossier client.
+
 ## Sauvegarde et restauration
 
 - Sauvegarder PostgreSQL quotidiennement et verifier mensuellement une restauration sur un environnement isole.

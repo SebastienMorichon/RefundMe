@@ -51,6 +51,7 @@ export class IdentityController {
       this.registerUser.execute({
         email: body.email ?? "",
         password: body.password ?? "",
+        role: isBootstrapAdminEmail(body.email ?? "") ? "ADMIN" : "USER",
       }),
     );
 
@@ -129,4 +130,13 @@ export class IdentityController {
       throw new BadRequestException(message);
     }
   }
+}
+
+function isBootstrapAdminEmail(email: string): boolean {
+  const allowedEmails = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+
+  return allowedEmails.includes(email.trim().toLowerCase());
 }

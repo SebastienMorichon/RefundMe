@@ -205,6 +205,11 @@ export default function DashboardPage() {
           <a href="/" className="text-sm font-semibold text-[#5147f5]">
             Lydoc
           </a>
+          {user?.role === "ADMIN" ? (
+            <a href="/admin/rules" className="mt-3 inline-block text-sm font-semibold text-[#5147f5]">
+              Gerer les reglements
+            </a>
+          ) : null}
           <h1 className="mt-8 text-4xl font-bold leading-tight">
             Deposez une facture Orange.
           </h1>

@@ -3,8 +3,9 @@ import { DocumentsModule } from "./modules/documents/documents.module";
 import { HealthModule } from "./modules/health/health.module";
 import { IdentityModule } from "./modules/identity/identity.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
+import { RulesModule } from "./modules/rules/rules.module";
 
 @Module({
-  imports: [PrismaModule, HealthModule, IdentityModule, DocumentsModule],
+  imports: [PrismaModule, HealthModule, IdentityModule, DocumentsModule, RulesModule],
 })
 export class AppModule {}

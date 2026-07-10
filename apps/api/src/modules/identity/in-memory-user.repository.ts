@@ -11,7 +11,7 @@ export class InMemoryUserRepository implements UserRepository {
       id: crypto.randomUUID(),
       email: input.email,
       passwordHash: input.passwordHash,
-      role: "USER",
+      role: input.role ?? "USER",
       createdAt: new Date(),
     };
 
@@ -27,4 +27,3 @@ export class InMemoryUserRepository implements UserRepository {
     return this.users.get(id) ?? null;
   }
 }
-
