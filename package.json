@@ -15,7 +15,7 @@
     "clean:build": "node scripts/clean-build-cache.mjs",
     "clean:web": "node scripts/clean-web-cache.mjs",
     "lint": "pnpm -r --stream lint",
-    "typecheck": "pnpm -r --stream typecheck",
+    "typecheck": "pnpm dev:prepare && pnpm -r --stream typecheck",
     "test": "pnpm -r --stream test",
     "format": "prettier --write .",
     "db:push": "prisma db push --schema prisma/schema.prisma",

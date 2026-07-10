@@ -61,7 +61,10 @@ function readDocumentEncryptionSecret(): string {
   const localDefault = "local-dev-document-secret-change-me";
   const configuredSecret = process.env.DOCUMENT_ENCRYPTION_SECRET;
 
-  if (process.env.NODE_ENV === "production" && (!configuredSecret || configuredSecret === localDefault)) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!configuredSecret || configuredSecret === localDefault || configuredSecret.includes("replace-with") || configuredSecret.length < 32)
+  ) {
     throw new Error("DOCUMENT_ENCRYPTION_SECRET must be configured in production.");
   }
 

@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"No config tests yet\""
+    "test": "node --test test/runtime-config.test.cjs"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

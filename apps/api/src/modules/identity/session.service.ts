@@ -81,7 +81,10 @@ function readSessionSecret(): string {
   const localDefault = "local-dev-session-secret-change-me";
   const configuredSecret = process.env.SESSION_SECRET;
 
-  if (process.env.NODE_ENV === "production" && (!configuredSecret || configuredSecret === localDefault)) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!configuredSecret || configuredSecret === localDefault || configuredSecret.includes("replace-with") || configuredSecret.length < 32)
+  ) {
     throw new Error("SESSION_SECRET must be configured in production.");
   }
 

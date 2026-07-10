@@ -10,6 +10,13 @@ export type AppConfig = Readonly<{
   };
 }>;
 
+export type ApiRuntimeConfig = Readonly<{
+  nodeEnv: AppConfig["nodeEnv"];
+  port: number;
+  appOrigins: string[];
+  trustProxy: boolean;
+}>;
+
 export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
   return {
     nodeEnv: parseNodeEnv(env.NODE_ENV),
@@ -21,6 +28,25 @@ export function readConfig(env: NodeJS.ProcessEnv): AppConfig {
       region: required(env.S3_REGION, "S3_REGION"),
       bucket: required(env.S3_BUCKET, "S3_BUCKET"),
     },
+  };
+}
+
+export function readApiRuntimeConfig(env: NodeJS.ProcessEnv): ApiRuntimeConfig {
+  const nodeEnv = parseNodeEnv(env.NODE_ENV);
+  const appUrl = env.APP_URL?.trim();
+
+  if (nodeEnv === "production" && !appUrl) {
+    throw new Error("Missing environment variable: APP_URL");
+  }
+
+  return {
+    nodeEnv,
+    port: parsePort(env.PORT),
+    appOrigins: (appUrl ?? "http://localhost:3000")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+    trustProxy: env.TRUST_PROXY === "true",
   };
 }
 
@@ -40,3 +66,15 @@ function required(value: string | undefined, key: string): string {
   return value;
 }
 
+function parsePort(value: string | undefined): number {
+  if (!value) {
+    return 3001;
+  }
+
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("PORT must be an integer between 1 and 65535.");
+  }
+
+  return port;
+}
