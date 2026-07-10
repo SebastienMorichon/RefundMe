@@ -2,11 +2,13 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { AnalyzeOrangeInvoiceEligibility } from "@lydoc/application";
 import { DocumentKind, DocumentStatus, Prisma, RuleStatus } from "@prisma/client";
 import { LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
+import { MistralOcrProvider } from "@lydoc/infrastructure";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class EligibilityService {
   private readonly analyzer = new AnalyzeOrangeInvoiceEligibility();
+  private readonly mistralOcr = new MistralOcrProvider(process.env.MISTRAL_API_KEY ?? "");
 
   constructor(
     private readonly prisma: PrismaService,
@@ -16,6 +18,7 @@ export class EligibilityService {
   async analyzeInvoice(documentId: string, ownerId: string) {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, ownerId },
+      include: { ocrResult: true },
     });
 
     if (!document) {
@@ -26,21 +29,20 @@ export class EligibilityService {
       throw new BadRequestException("Seules les factures Orange peuvent etre analysees ici.");
     }
 
-    const bytes = await this.storage.getDecryptedObject({
-      object: {
-        bucket: document.storageBucket,
-        key: document.storageKey,
-        checksumSha256: document.checksumSha256,
-        sizeBytes: document.sizeBytes,
-      },
-      encryptionContext: { ownerId, documentKind: document.kind },
-    });
+    const ocr = document.ocrResult
+      ? {
+          text: document.ocrResult.text,
+          provider: document.ocrResult.provider,
+          ...(document.ocrResult.confidence ? { confidence: Number(document.ocrResult.confidence) } : {}),
+          raw: document.ocrResult.rawJson,
+        }
+      : await this.runOcr(document, ownerId);
     const rules = await this.prisma.gameRule.findMany({
       where: { status: RuleStatus.APPROVED },
       include: { organizer: true },
     });
     const analysis = this.analyzer.execute({
-      bytes,
+      text: ocr.text,
       approvedRules: rules.map((rule) => ({
         id: rule.id,
         organizerName: rule.organizer.name,
@@ -59,19 +61,25 @@ export class EligibilityService {
         where: { documentId: document.id },
         create: {
           documentId: document.id,
-          provider: "local-printable-text",
-          text: analysis.extractedText,
+          provider: ocr.provider,
+          text: ocr.text,
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
           rawJson: {
             isOrangeInvoice: analysis.isOrangeInvoice,
             participationCount: analysis.participationCount,
+            provider: ocr.provider,
+            ocr: toJsonValue(ocr.raw),
           },
         },
         update: {
-          provider: "local-printable-text",
-          text: analysis.extractedText,
+          provider: ocr.provider,
+          text: ocr.text,
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
           rawJson: {
             isOrangeInvoice: analysis.isOrangeInvoice,
             participationCount: analysis.participationCount,
+            provider: ocr.provider,
+            ocr: toJsonValue(ocr.raw),
           },
         },
       });
@@ -152,4 +160,33 @@ export class EligibilityService {
       createdAt: administrativeCase.createdAt,
     };
   }
+
+  private async runOcr(
+    document: {
+      storageBucket: string;
+      storageKey: string;
+      checksumSha256: string;
+      sizeBytes: number;
+      kind: DocumentKind;
+      mimeType: string;
+    },
+    ownerId: string,
+  ) {
+    const bytes = await this.storage.getDecryptedObject({
+      object: {
+        bucket: document.storageBucket,
+        key: document.storageKey,
+        checksumSha256: document.checksumSha256,
+        sizeBytes: document.sizeBytes,
+      },
+      encryptionContext: { ownerId, documentKind: document.kind },
+    });
+
+    return this.mistralOcr.extractText({ bytes, mimeType: document.mimeType });
+  }
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? {} : JSON.parse(serialized) as Prisma.InputJsonValue;
 }

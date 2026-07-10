@@ -1,5 +1,5 @@
 export type OcrInput = Readonly<{
-  storageKey: string;
+  bytes: Uint8Array;
   mimeType: string;
 }>;
 
@@ -13,4 +13,3 @@ export type OcrResult = Readonly<{
 export interface OcrProvider {
   extractText(input: OcrInput): Promise<OcrResult>;
 }
-

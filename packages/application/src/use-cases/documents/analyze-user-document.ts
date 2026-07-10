@@ -14,7 +14,7 @@ export class AnalyzeUserDocument {
     private readonly documentProvider: DocumentProvider,
   ) {}
 
-  async execute(input: { storageKey: string; mimeType: string }): Promise<AnalyzeUserDocumentResult> {
+  async execute(input: { bytes: Uint8Array; mimeType: string }): Promise<AnalyzeUserDocumentResult> {
     const ocr = await this.ocrProvider.extractText(input);
     const classification = await this.documentProvider.classify({
       text: ocr.text,
@@ -33,4 +33,3 @@ export class AnalyzeUserDocument {
     };
   }
 }
-

@@ -19,7 +19,7 @@ export class ExtractGameRuleCandidate {
     private readonly aiProvider: AiProvider,
   ) {}
 
-  async execute(input: { storageKey: string; mimeType: string }): Promise<GameRuleCandidate> {
+  async execute(input: { bytes: Uint8Array; mimeType: string }): Promise<GameRuleCandidate> {
     const ocr = await this.ocrProvider.extractText(input);
     const extraction = await this.aiProvider.extractStructuredData<GameRuleCandidate>({
       documentText: ocr.text,
@@ -31,4 +31,3 @@ export class ExtractGameRuleCandidate {
     return extraction.data;
   }
 }
-

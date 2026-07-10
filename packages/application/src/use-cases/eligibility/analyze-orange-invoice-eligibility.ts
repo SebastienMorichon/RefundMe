@@ -27,11 +27,11 @@ export type OrangeInvoiceAnalysis = Readonly<{
 
 export class AnalyzeOrangeInvoiceEligibility {
   execute(input: {
-    bytes: Uint8Array;
+    text: string;
     approvedRules: ApprovedRuleForMatching[];
     now?: Date;
   }): OrangeInvoiceAnalysis {
-    const extractedText = extractPrintableText(input.bytes);
+    const extractedText = input.text.replace(/\s+/g, " ").trim();
     const normalizedText = extractedText.toLocaleLowerCase("fr-FR");
     const isOrangeInvoice = normalizedText.includes("orange");
     const participationCount = countParticipations(normalizedText);
@@ -82,13 +82,6 @@ export class AnalyzeOrangeInvoiceEligibility {
       missingRequirements: requiredDocumentLabels(rule.requiredDocuments),
     };
   }
-}
-
-function extractPrintableText(bytes: Uint8Array): string {
-  const raw = Buffer.from(bytes).toString("latin1");
-  const strings = raw.match(/[\x20-\x7e]{4,}/g) ?? [];
-
-  return strings.join(" ").replace(/\\([()])/g, "$1").replace(/\s+/g, " ").trim();
 }
 
 function countParticipations(text: string): number {

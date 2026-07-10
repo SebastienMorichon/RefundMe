@@ -17,8 +17,13 @@ Chaque reponse HTTP expose un en-tete `X-Request-Id`. Le conserver dans les jour
 - `SESSION_SECRET`, aleatoire et d'au moins 32 caracteres
 - `DOCUMENT_ENCRYPTION_SECRET`, aleatoire et d'au moins 32 caracteres
 - `DOCUMENT_STORAGE_DIR` seulement pour une instance locale de demonstration
+- `MISTRAL_API_KEY` pour l'OCR des factures et reglements. Cette cle reste exclusivement cote API.
 
 Ne jamais reutiliser les valeurs de `.env.example` en production. Les secrets de session et de chiffrement sont volontairement refuses au demarrage quand ils sont insuffisants.
+
+## OCR Mistral
+
+L'analyse de facture envoie le document dechiffre a l'API Mistral OCR, puis conserve le texte et la confiance retournes. Un resultat OCR existant est reutilise pour eviter un nouvel appel facture. L'OCR est donc un traitement payant et implique un transfert ponctuel du document au fournisseur; ce flux doit etre couvert par la politique de confidentialite et le contrat de sous-traitance avant ouverture publique.
 
 ## Regles reseau
 

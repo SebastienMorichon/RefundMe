@@ -4,7 +4,7 @@ const { AnalyzeOrangeInvoiceEligibility } = require("../dist/use-cases/eligibili
 
 test("matches a current approved Orange rule from printable invoice text", () => {
   const analysis = new AnalyzeOrangeInvoiceEligibility().execute({
-    bytes: Buffer.from("Facture Orange. Une participation SMS au jeu ete detectee."),
+    text: "Facture Orange. Une participation SMS au jeu ete detectee.",
     approvedRules: [{
       id: "rule-1",
       organizerName: "Orange",
@@ -23,7 +23,7 @@ test("matches a current approved Orange rule from printable invoice text", () =>
 
 test("does not match a rule outside its validity window", () => {
   const analysis = new AnalyzeOrangeInvoiceEligibility().execute({
-    bytes: Buffer.from("Facture Orange"),
+    text: "Facture Orange",
     approvedRules: [{
       id: "rule-1",
       organizerName: "Orange",
