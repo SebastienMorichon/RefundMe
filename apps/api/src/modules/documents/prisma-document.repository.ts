@@ -41,6 +41,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
     originalName: string;
     mimeType: string;
     sizeBytes: number;
+    storageBucket: string;
     storageKey: string;
     checksumSha256: string;
     encrypted: boolean;
@@ -56,6 +57,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
       originalName: document.originalName,
       mimeType: document.mimeType,
       sizeBytes: document.sizeBytes,
+      storageBucket: document.storageBucket,
       checksumSha256: document.checksumSha256,
       storageKey: document.storageKey,
       encrypted: true,

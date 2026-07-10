@@ -14,7 +14,10 @@ export type StoredObjectRef = Readonly<{
 
 export interface ObjectStorageProvider {
   putEncryptedObject(input: PutObjectInput): Promise<StoredObjectRef>;
+  getDecryptedObject(input: {
+    object: StoredObjectRef;
+    encryptionContext: Record<string, string>;
+  }): Promise<Uint8Array>;
   getSignedReadUrl(input: StoredObjectRef, ttlSeconds: number): Promise<string>;
   deleteObject(input: StoredObjectRef): Promise<void>;
 }
-

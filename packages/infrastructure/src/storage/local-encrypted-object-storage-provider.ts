@@ -1,5 +1,5 @@
-import { createCipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type {
   ObjectStorageProvider,
@@ -37,6 +37,17 @@ export class LocalEncryptedObjectStorageProvider implements ObjectStorageProvide
     throw new Error("Local signed read URLs are not available in this iteration.");
   }
 
+  async getDecryptedObject(input: {
+    object: StoredObjectRef;
+    encryptionContext: Record<string, string>;
+  }): Promise<Uint8Array> {
+    const encryptedPayload = await readFile(
+      join(this.rootDirectory, input.object.bucket, input.object.key),
+    );
+
+    return this.decrypt(encryptedPayload, input.encryptionContext);
+  }
+
   async deleteObject(input: StoredObjectRef): Promise<void> {
     await rm(join(this.rootDirectory, input.bucket, input.key), { force: true });
   }
@@ -54,6 +65,25 @@ export class LocalEncryptedObjectStorageProvider implements ObjectStorageProvide
 
   private deriveKey(): Buffer {
     return createHash("sha256").update(this.secret).digest();
+  }
+
+  private decrypt(payload: Buffer, context: Record<string, string>): Buffer {
+    const headerLength = 6;
+    const ivLength = 12;
+    const tagLength = 16;
+
+    if (payload.length <= headerLength + ivLength + tagLength || payload.subarray(0, headerLength).toString("utf8") !== "LYDOC1") {
+      throw new Error("Le document chiffre est invalide.");
+    }
+
+    const iv = payload.subarray(headerLength, headerLength + ivLength);
+    const tag = payload.subarray(headerLength + ivLength, headerLength + ivLength + tagLength);
+    const encrypted = payload.subarray(headerLength + ivLength + tagLength);
+    const decipher = createDecipheriv("aes-256-gcm", this.deriveKey(), iv);
+    decipher.setAAD(Buffer.from(JSON.stringify(context), "utf8"));
+    decipher.setAuthTag(tag);
+
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]);
   }
 }
 

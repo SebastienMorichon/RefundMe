@@ -31,8 +31,8 @@ export type StoredDocument = Readonly<{
   originalName: string;
   mimeType: string;
   sizeBytes: number;
+  storageBucket: string;
   checksumSha256: string;
   storageKey: string;
   encrypted: true;
 }>;
-

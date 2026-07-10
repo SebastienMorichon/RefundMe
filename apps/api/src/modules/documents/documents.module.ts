@@ -18,5 +18,6 @@ import { PrismaDocumentRepository } from "./prisma-document.repository";
         ),
     },
   ],
+  exports: [LocalEncryptedObjectStorageProvider, PrismaDocumentRepository],
 })
 export class DocumentsModule {}

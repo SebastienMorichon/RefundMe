@@ -15,6 +15,7 @@ export class InMemoryDocumentRepository implements DocumentRepository {
       originalName: input.originalName,
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
+      storageBucket: input.storageBucket,
       checksumSha256: input.checksumSha256,
       storageKey: input.storageKey,
       encrypted: true,
@@ -28,4 +29,3 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return Array.from(this.documents.values()).filter((document) => document.ownerId === ownerId);
   }
 }
-

@@ -10,6 +10,14 @@ export class S3ObjectStorageProvider implements ObjectStorageProvider {
     throw new Error("S3 encrypted storage adapter is not implemented yet.");
   }
 
+  async getDecryptedObject(input: {
+    object: StoredObjectRef;
+    encryptionContext: Record<string, string>;
+  }): Promise<Uint8Array> {
+    void input;
+    throw new Error("S3 encrypted storage adapter is not implemented yet.");
+  }
+
   async getSignedReadUrl(input: StoredObjectRef, ttlSeconds: number): Promise<string> {
     void input;
     void ttlSeconds;
@@ -21,4 +29,3 @@ export class S3ObjectStorageProvider implements ObjectStorageProvider {
     throw new Error("S3 delete adapter is not implemented yet.");
   }
 }
-
