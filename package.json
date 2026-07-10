@@ -1,0 +1,37 @@
+{
+  "name": "lydoc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Assistant documentaire intelligent pour dossiers administratifs conformes.",
+  "packageManager": "pnpm@11.7.0",
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm dev:prepare && node scripts/kill-dev-ports.mjs && pnpm --parallel --filter @lydoc/web --filter @lydoc/api dev",
+    "dev:prepare": "node scripts/clean-build-cache.mjs && pnpm --filter @lydoc/domain --filter @lydoc/application --filter @lydoc/infrastructure --filter @lydoc/config build",
+    "build": "pnpm -r --stream build",
+    "clean:api": "node scripts/clean-api-dist.mjs",
+    "clean:build": "node scripts/clean-build-cache.mjs",
+    "clean:web": "node scripts/clean-web-cache.mjs",
+    "lint": "pnpm -r --stream lint",
+    "typecheck": "pnpm -r --stream typecheck",
+    "test": "pnpm -r --stream test",
+    "format": "prettier --write .",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.3.0",
+    "prisma": "^6.0.0",
+    "turbo": "^2.0.0",
+    "typescript-eslint": "^8.0.0",
+    "typescript": "^5.6.0"
+  }
+}

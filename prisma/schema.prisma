@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum DocumentKind {
+  GAME_RULE_PDF
+  ORANGE_INVOICE
+  IDENTITY_DOCUMENT
+  BANK_DETAILS
+  TRAIN_TICKET
+  FLIGHT_TICKET
+  PURCHASE_PROOF
+  WARRANTY
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  OCR_PENDING
+  OCR_DONE
+  ANALYSIS_PENDING
+  ANALYZED
+  FAILED
+}
+
+enum RuleStatus {
+  DRAFT
+  AI_EXTRACTED
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum CaseStatus {
+  DRAFT
+  WAITING_FOR_USER_DOCUMENTS
+  READY_TO_PAY
+  PAID
+  GENERATED
+  PRINT_READY
+  SENT
+  REFUNDED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  documents    Document[]
+  cases        AdministrativeCase[]
+  auditLogs    AuditLog[]
+}
+
+model Document {
+  id             String         @id @default(cuid())
+  ownerId        String?
+  kind           DocumentKind
+  status         DocumentStatus @default(UPLOADED)
+  originalName   String
+  mimeType       String
+  sizeBytes      Int
+  storageBucket  String
+  storageKey     String
+  checksumSha256 String
+  encrypted      Boolean        @default(true)
+  uploadedAt     DateTime       @default(now())
+  analyzedAt     DateTime?
+
+  owner          User?          @relation(fields: [ownerId], references: [id])
+  ocrResult      OcrResult?
+  analyses       DocumentAnalysis[]
+  caseDocuments  CaseDocument[]
+  gameRules      GameRule[]     @relation("RuleSourceDocument")
+}
+
+model OcrResult {
+  id          String   @id @default(cuid())
+  documentId  String   @unique
+  provider    String
+  text        String
+  rawJson     Json
+  confidence  Decimal? @db.Decimal(5, 4)
+  createdAt   DateTime @default(now())
+
+  document    Document @relation(fields: [documentId], references: [id])
+}
+
+model DocumentAnalysis {
+  id          String   @id @default(cuid())
+  documentId  String
+  provider    String
+  schemaName  String
+  resultJson  Json
+  confidence  Decimal? @db.Decimal(5, 4)
+  createdAt   DateTime @default(now())
+
+  document    Document @relation(fields: [documentId], references: [id])
+}
+
+model Organizer {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  gameRules GameRule[]
+}
+
+model GameRule {
+  id                 String     @id @default(cuid())
+  organizerId        String
+  sourceDocumentId   String
+  status             RuleStatus @default(NEEDS_REVIEW)
+  name               String
+  version            Int        @default(1)
+  validFrom          DateTime?
+  validUntil         DateTime?
+  reimbursementCents Int
+  requiredDocuments  Json
+  constraintsJson    Json
+  reviewedById       String?
+  reviewedAt         DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  organizer          Organizer  @relation(fields: [organizerId], references: [id])
+  sourceDocument     Document   @relation("RuleSourceDocument", fields: [sourceDocumentId], references: [id])
+  cases              AdministrativeCase[]
+}
+
+model AdministrativeCase {
+  id                         String     @id @default(cuid())
+  ownerId                    String
+  gameRuleId                 String?
+  status                     CaseStatus @default(DRAFT)
+  estimatedRecoverableCents   Int
+  serviceFeeCents            Int        @default(299)
+  confidence                 Decimal?   @db.Decimal(5, 4)
+  complianceSnapshotJson      Json
+  createdAt                  DateTime   @default(now())
+  updatedAt                  DateTime   @updatedAt
+
+  owner                      User       @relation(fields: [ownerId], references: [id])
+  gameRule                   GameRule?  @relation(fields: [gameRuleId], references: [id])
+  documents                  CaseDocument[]
+  payment                    Payment?
+  generatedPackets           GeneratedPacket[]
+}
+
+model CaseDocument {
+  id         String   @id @default(cuid())
+  caseId     String
+  documentId String
+  purpose    String
+  createdAt  DateTime @default(now())
+
+  case       AdministrativeCase @relation(fields: [caseId], references: [id])
+  document   Document           @relation(fields: [documentId], references: [id])
+
+  @@unique([caseId, documentId, purpose])
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  caseId                String        @unique
+  status                PaymentStatus @default(PENDING)
+  amountCents           Int
+  currency              String        @default("eur")
+  stripeCheckoutSession String?
+  stripePaymentIntent   String?
+  paidAt                DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  case                  AdministrativeCase @relation(fields: [caseId], references: [id])
+}
+
+model GeneratedPacket {
+  id             String   @id @default(cuid())
+  caseId         String
+  storageBucket  String
+  storageKey     String
+  checksumSha256 String
+  createdAt      DateTime @default(now())
+
+  case           AdministrativeCase @relation(fields: [caseId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  actor       User?    @relation(fields: [actorId], references: [id])
+}
+

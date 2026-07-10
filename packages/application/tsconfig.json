@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@lydoc/domain": ["packages/domain/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

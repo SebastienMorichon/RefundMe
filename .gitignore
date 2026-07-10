@@ -1,0 +1,12 @@
+node_modules
+.pnpm-store
+.turbo
+.next
+dist
+coverage
+var
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log

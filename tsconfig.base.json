@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@lydoc/domain": ["packages/domain/src/index.ts"],
+      "@lydoc/application": ["packages/application/src/index.ts"],
+      "@lydoc/config": ["packages/config/src/index.ts"],
+      "@lydoc/infrastructure": ["packages/infrastructure/src/index.ts"],
+      "@lydoc/ui": ["packages/ui/src/index.ts"]
+    }
+  }
+}

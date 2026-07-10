@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@lydoc/application": ["packages/application/dist/index.d.ts"],
+      "@lydoc/config": ["packages/config/dist/index.d.ts"],
+      "@lydoc/domain": ["packages/domain/dist/index.d.ts"],
+      "@lydoc/infrastructure": ["packages/infrastructure/dist/index.d.ts"],
+      "@lydoc/ui": ["packages/ui/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

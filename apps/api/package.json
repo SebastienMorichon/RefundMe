@@ -1,0 +1,30 @@
+{
+  "name": "@lydoc/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/session.service.test.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@lydoc/application": "workspace:*",
+    "@lydoc/config": "workspace:*",
+    "@lydoc/domain": "workspace:*",
+    "@lydoc/infrastructure": "workspace:*",
+    "@prisma/client": "^6.0.0",
+    "express": "^5.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "typescript": "^5.6.0"
+  }
+}
