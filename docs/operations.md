@@ -25,6 +25,8 @@ Ne jamais reutiliser les valeurs de `.env.example` en production. Les secrets de
 
 L'analyse de facture envoie le document dechiffre a l'API Mistral OCR, puis conserve le texte et la confiance retournes. Un resultat OCR existant est reutilise pour eviter un nouvel appel facture. L'OCR est donc un traitement payant et implique un transfert ponctuel du document au fournisseur; ce flux doit etre couvert par la politique de confidentialite et le contrat de sous-traitance avant ouverture publique.
 
+Le scan d'un reglement depuis `/admin/rules` applique le meme mecanisme. Le texte OCR est stocke dans `OcrResult` et la proposition de fiche dans `DocumentAnalysis` avec le schema `game-rule-candidate-v1`. L'administrateur relit la fiche pre-remplie avant de creer puis approuver la regle; aucune proposition OCR n'est publiee automatiquement.
+
 ## Regles reseau
 
 - L'API n'accepte les requetes navigateur que depuis les origines declarees dans `APP_URL`, separees par des virgules.

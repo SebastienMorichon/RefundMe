@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, RuleStatus } from "@prisma/client";
+import { MistralAiProvider, MistralOcrProvider, LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
 import { PrismaService } from "../prisma/prisma.service";
 
 export type RequiredDocumentInput = Readonly<{
@@ -20,9 +21,86 @@ export type CreateGameRuleInput = Readonly<{
   validUntil?: Date;
 }>;
 
+export type UpdateGameRuleInput = Omit<CreateGameRuleInput, "actorId" | "sourceDocumentId"> & Readonly<{
+  actorId: string;
+}>;
+
 @Injectable()
 export class RulesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly mistralOcr = new MistralOcrProvider(process.env.MISTRAL_API_KEY ?? "");
+  private readonly mistralAi = new MistralAiProvider(process.env.MISTRAL_API_KEY ?? "");
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: LocalEncryptedObjectStorageProvider,
+  ) {}
+
+  async extractCandidate(sourceDocumentId: string, actorId: string) {
+    const document = await this.prisma.document.findUnique({
+      where: { id: sourceDocumentId },
+      include: { ocrResult: true },
+    });
+
+    if (!document || document.kind !== "GAME_RULE_PDF" || !document.ownerId) {
+      throw new BadRequestException("Le PDF source du reglement est introuvable.");
+    }
+
+    const existingCandidate = await this.prisma.documentAnalysis.findFirst({
+      where: { documentId: document.id, schemaName: "game-rule-candidate-v2" },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existingCandidate) {
+      return { sourceDocumentId: document.id, ...normalizeGameRuleCandidate(existingCandidate.resultJson, undefined) };
+    }
+
+    const ocr = document.ocrResult
+      ? {
+          text: document.ocrResult.text,
+          provider: document.ocrResult.provider,
+          ...(document.ocrResult.confidence ? { confidence: Number(document.ocrResult.confidence) } : {}),
+          raw: document.ocrResult.rawJson,
+        }
+      : await this.runOcr(document);
+    const candidate = await this.analyzeRuleText(ocr.text, ocr.confidence);
+
+    await this.prisma.$transaction([
+      this.prisma.ocrResult.upsert({
+        where: { documentId: document.id },
+        create: {
+          documentId: document.id,
+          provider: ocr.provider,
+          text: ocr.text,
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          rawJson: toJsonValue(ocr.raw),
+        },
+        update: {
+          provider: ocr.provider,
+          text: ocr.text,
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          rawJson: toJsonValue(ocr.raw),
+        },
+      }),
+      this.prisma.documentAnalysis.create({
+        data: {
+          documentId: document.id,
+          provider: ocr.provider,
+          schemaName: "game-rule-candidate-v2",
+          resultJson: candidate as Prisma.InputJsonValue,
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+        },
+      }),
+      this.prisma.document.update({
+        where: { id: document.id },
+        data: { status: "OCR_DONE", analyzedAt: new Date() },
+      }),
+    ]);
+
+    await this.writeAuditLog(actorId, "GAME_RULE_EXTRACTED", document.id, {
+      sourceDocumentId: document.id,
+    });
+
+    return { sourceDocumentId: document.id, ...candidate };
+  }
 
   async list() {
     const rules = await this.prisma.gameRule.findMany({
@@ -35,6 +113,61 @@ export class RulesService {
     });
 
     return rules.map((rule) => this.present(rule));
+  }
+
+  async get(ruleId: string) {
+    const rule = await this.prisma.gameRule.findUnique({
+      where: { id: ruleId },
+      include: {
+        organizer: true,
+        sourceDocument: { select: { id: true, originalName: true, uploadedAt: true } },
+      },
+    });
+
+    if (!rule) {
+      throw new NotFoundException("Reglement introuvable.");
+    }
+
+    return this.present(rule);
+  }
+
+  async update(ruleId: string, input: UpdateGameRuleInput) {
+    this.assertInput({ ...input, sourceDocumentId: "existing" });
+    const existingRule = await this.prisma.gameRule.findUnique({ where: { id: ruleId } });
+    if (!existingRule) {
+      throw new NotFoundException("Reglement introuvable.");
+    }
+
+    const organizerName = input.organizerName.trim();
+    const updatedRule = await this.prisma.gameRule.update({
+      where: { id: ruleId },
+      data: {
+        organizer: {
+          connectOrCreate: {
+            where: { slug: toSlug(organizerName) },
+            create: { name: organizerName, slug: toSlug(organizerName) },
+          },
+        },
+        name: input.name.trim(),
+        reimbursementCents: input.reimbursementCents,
+        requiredDocuments: input.requiredDocuments as Prisma.InputJsonValue,
+        constraintsJson: input.constraints as Prisma.InputJsonValue,
+        validFrom: input.validFrom ?? null,
+        validUntil: input.validUntil ?? null,
+        ...(existingRule.status === RuleStatus.APPROVED
+          ? { status: RuleStatus.NEEDS_REVIEW, version: { increment: 1 }, reviewedAt: null, reviewedById: null }
+          : {}),
+      },
+      include: {
+        organizer: true,
+        sourceDocument: { select: { id: true, originalName: true, uploadedAt: true } },
+      },
+    });
+
+    await this.writeAuditLog(input.actorId, "GAME_RULE_UPDATED", updatedRule.id, {
+      status: updatedRule.status,
+    });
+    return this.present(updatedRule);
   }
 
   async create(input: CreateGameRuleInput) {
@@ -139,6 +272,55 @@ export class RulesService {
     });
   }
 
+  private async runOcr(document: {
+    ownerId: string | null;
+    kind: string;
+    mimeType: string;
+    storageBucket: string;
+    storageKey: string;
+    checksumSha256: string;
+    sizeBytes: number;
+  }) {
+    if (!document.ownerId) {
+      throw new BadRequestException("Le proprietaire du document est introuvable.");
+    }
+
+    const bytes = await this.storage.getDecryptedObject({
+      object: {
+        bucket: document.storageBucket,
+        key: document.storageKey,
+        checksumSha256: document.checksumSha256,
+        sizeBytes: document.sizeBytes,
+      },
+      encryptionContext: { ownerId: document.ownerId, documentKind: document.kind },
+    });
+
+    return this.mistralOcr.extractText({ bytes, mimeType: document.mimeType });
+  }
+
+  private async analyzeRuleText(text: string, ocrConfidence: number | undefined) {
+    const result = await this.mistralAi.extractStructuredData<unknown>({
+      locale: "fr-FR",
+      documentText: text,
+      instruction: `Retourne uniquement un objet JSON avec ces champs:
+{
+  "name": "nom du jeu ou de l'operation, ou chaine vide",
+  "organizerName": "organisateur, ou chaine vide",
+  "gameDate": "date ISO YYYY-MM-DD ou null",
+  "validFrom": "date ISO YYYY-MM-DD ou null",
+  "validUntil": "date ISO YYYY-MM-DD ou null",
+  "reimbursementCents": "montant entier en centimes, ou 0 si absent",
+  "conditions": [{"title": "condition courte", "details": "formulation fidele au reglement"}],
+  "requiredDocuments": [{"kind": "ORANGE_INVOICE|IDENTITY_DOCUMENT|BANK_DETAILS|PURCHASE_PROOF|OTHER", "label": "piece demandee", "required": true}],
+  "constraints": {"participationMechanism": "...", "eligibilityConditions": ["..."], "reimbursementConditions": ["..."], "deadline": "...", "keywords": ["..."]},
+  "confidence": "nombre entre 0 et 1"
+}
+N'invente aucune information. Les conditions de remboursement et d'eligibilite doivent etre distinctes, precises et fidelement reprises du texte.`,
+    });
+
+    return normalizeGameRuleCandidate(result.data, ocrConfidence);
+  }
+
   private present(rule: {
     id: string;
     status: RuleStatus;
@@ -166,6 +348,58 @@ export class RulesService {
       sourceDocument: rule.sourceDocument,
     };
   }
+}
+
+function normalizeGameRuleCandidate(value: unknown, ocrConfidence: number | undefined) {
+  const input = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const constraints = input.constraints && typeof input.constraints === "object" && !Array.isArray(input.constraints)
+    ? input.constraints as Record<string, unknown>
+    : {};
+  const conditions = Array.isArray(input.conditions)
+    ? input.conditions.flatMap((condition) => {
+        if (!condition || typeof condition !== "object") return [];
+        const value = condition as Record<string, unknown>;
+        return typeof value.title === "string" && typeof value.details === "string"
+          ? [{ title: value.title, details: value.details }]
+          : [];
+      })
+    : [];
+  const requiredDocuments = Array.isArray(input.requiredDocuments)
+    ? input.requiredDocuments.flatMap((document) => {
+        if (!document || typeof document !== "object") return [];
+        const value = document as Record<string, unknown>;
+        return typeof value.kind === "string" && typeof value.label === "string" && typeof value.required === "boolean"
+          ? [{ kind: value.kind, label: value.label, required: value.required }]
+          : [];
+      })
+    : [];
+  const aiConfidence = typeof input.confidence === "number" && input.confidence >= 0 && input.confidence <= 1
+    ? input.confidence
+    : 0.4;
+
+  return {
+    organizerName: typeof input.organizerName === "string" ? input.organizerName : "",
+    name: typeof input.name === "string" ? input.name : "",
+    reimbursementCents: typeof input.reimbursementCents === "number" && Number.isInteger(input.reimbursementCents) && input.reimbursementCents >= 0
+      ? input.reimbursementCents
+      : 0,
+    requiredDocuments,
+    constraints: {
+      ...constraints,
+      conditions,
+      ...(typeof input.gameDate === "string" ? { gameDate: input.gameDate } : {}),
+    },
+    ...(typeof input.validFrom === "string" ? { validFrom: input.validFrom } : {}),
+    ...(typeof input.validUntil === "string" ? { validUntil: input.validUntil } : {}),
+    confidence: ocrConfidence === undefined ? aiConfidence : Math.min(aiConfidence, ocrConfidence),
+  };
+}
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? {} : JSON.parse(serialized) as Prisma.InputJsonValue;
 }
 
 function toSlug(value: string): string {

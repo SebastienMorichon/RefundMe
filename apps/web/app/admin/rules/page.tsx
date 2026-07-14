@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Button } from "@lydoc/ui";
+import { AppShell } from "../../../components/app-shell";
 
 type Rule = {
   id: string;
@@ -10,10 +11,25 @@ type Rule = {
   organizer: { id: string; name: string };
   reimbursementCents: number;
   requiredDocuments: unknown;
+  constraints: Record<string, unknown>;
+  validFrom: string | null;
+  validUntil: string | null;
   sourceDocument: { id: string; originalName: string; uploadedAt: string };
 };
 
 type SessionUser = { id: string; email: string; role: string };
+
+type RuleCandidate = {
+  sourceDocumentId: string;
+  organizerName: string;
+  name: string;
+  reimbursementCents: number;
+  requiredDocuments: Array<{ kind: string; label: string; required: boolean }>;
+  constraints: Record<string, unknown>;
+  validFrom?: string;
+  validUntil?: string;
+  confidence: number;
+};
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
@@ -25,6 +41,16 @@ export default function AdminRulesPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [requiresIdentity, setRequiresIdentity] = useState(true);
   const [requiresBankDetails, setRequiresBankDetails] = useState(true);
+  const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
+  const [organizerName, setOrganizerName] = useState("");
+  const [ruleName, setRuleName] = useState("");
+  const [reimbursementEuros, setReimbursementEuros] = useState("");
+  const [validFrom, setValidFrom] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [gameDate, setGameDate] = useState("");
+  const [constraints, setConstraints] = useState<Record<string, unknown>>({});
+  const [conditionsText, setConditionsText] = useState("");
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadAdminContext();
@@ -75,45 +101,63 @@ export default function AdminRulesPage() {
     const form = event.currentTarget;
     const formData = new FormData(form);
     const sourceFile = formData.get("source") as File | null;
-    const organizerName = String(formData.get("organizerName") ?? "");
-    const name = String(formData.get("name") ?? "");
-    const reimbursementEuros = Number(formData.get("reimbursementEuros"));
-
-    if (!sourceFile || sourceFile.size === 0) {
-      setMessage("Choisissez le PDF du reglement.");
-      return;
-    }
-
-    if (sourceFile.type !== "application/pdf" || sourceFile.size > maxDocumentSizeBytes) {
-      setMessage("Le reglement doit etre un PDF de 20 Mo maximum.");
-      return;
-    }
-
-    if (!Number.isFinite(reimbursementEuros) || reimbursementEuros < 0) {
-      setMessage("Indiquez un montant estimatif valide.");
-      return;
-    }
-
     setIsBusy(true);
-    setMessage("Depot du PDF source...");
 
     try {
-      const uploadResponse = await fetch(`${apiUrl}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          kind: "GAME_RULE_PDF",
-          originalName: sourceFile.name,
-          mimeType: sourceFile.type,
-          contentBase64: await fileToBase64(sourceFile),
-        }),
-      });
-      const uploadPayload = await readJson(uploadResponse);
-      const documentId = readDocumentId(uploadPayload.document);
+      if (!sourceDocumentId) {
+        if (!sourceFile || sourceFile.size === 0) {
+          throw new Error("Choisissez le PDF du reglement.");
+        }
+        if (sourceFile.type !== "application/pdf" || sourceFile.size > maxDocumentSizeBytes) {
+          throw new Error("Le reglement doit etre un PDF de 20 Mo maximum.");
+        }
 
-      if (!uploadResponse.ok || !documentId) {
-        throw new Error(errorMessage(uploadPayload, "Impossible de deposer le PDF."));
+        setMessage("Depot et analyse OCR du reglement...");
+        const uploadResponse = await fetch(`${apiUrl}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            kind: "GAME_RULE_PDF",
+            originalName: sourceFile.name,
+            mimeType: sourceFile.type,
+            contentBase64: await fileToBase64(sourceFile),
+          }),
+        });
+        const uploadPayload = await readJson(uploadResponse);
+        const documentId = readDocumentId(uploadPayload.document);
+        if (!uploadResponse.ok || !documentId) {
+          throw new Error(errorMessage(uploadPayload, "Impossible de deposer le PDF."));
+        }
+
+        const extractionResponse = await fetch(`${apiUrl}/admin/rules/extract/${documentId}`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const extractionPayload = await readJson(extractionResponse);
+        const candidate = readRuleCandidate(extractionPayload.candidate);
+        if (!extractionResponse.ok || !candidate) {
+          throw new Error(errorMessage(extractionPayload, "Impossible d'analyser le reglement."));
+        }
+
+        setSourceDocumentId(candidate.sourceDocumentId);
+        setOrganizerName(candidate.organizerName);
+        setRuleName(candidate.name);
+        setReimbursementEuros((candidate.reimbursementCents / 100).toFixed(2));
+        setValidFrom(candidate.validFrom?.slice(0, 10) ?? "");
+        setValidUntil(candidate.validUntil?.slice(0, 10) ?? "");
+        setGameDate(readString(candidate.constraints.gameDate)?.slice(0, 10) ?? "");
+        setConstraints(candidate.constraints);
+        setConditionsText(formatConditions(candidate.constraints));
+        setRequiresIdentity(candidate.requiredDocuments.some((document) => document.kind === "IDENTITY_DOCUMENT"));
+        setRequiresBankDetails(candidate.requiredDocuments.some((document) => document.kind === "BANK_DETAILS"));
+        setMessage("Fiche pre-remplie par Mistral. Relisez les champs puis creez le reglement.");
+        return;
+      }
+
+      const reimbursement = Number(reimbursementEuros);
+      if (!organizerName.trim() || !ruleName.trim() || !Number.isFinite(reimbursement) || reimbursement < 0) {
+        throw new Error("Verifiez l'organisateur, le nom et le montant avant de creer le reglement.");
       }
 
       setMessage("Creation de la regle en relecture...");
@@ -126,19 +170,28 @@ export default function AdminRulesPage() {
           ? [{ kind: "BANK_DETAILS", label: "RIB", required: true }]
           : []),
       ];
-      const ruleResponse = await fetch(`${apiUrl}/admin/rules`, {
-        method: "POST",
+      const ruleResponse = await fetch(
+        editingRuleId ? `${apiUrl}/admin/rules/${editingRuleId}` : `${apiUrl}/admin/rules`,
+        {
+        method: editingRuleId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          sourceDocumentId: documentId,
+          sourceDocumentId,
           organizerName,
-          name,
-          reimbursementCents: Math.round(reimbursementEuros * 100),
+          name: ruleName,
+          reimbursementCents: Math.round(reimbursement * 100),
           requiredDocuments,
-          constraints: {},
+          constraints: {
+            ...constraints,
+            conditions: parseConditions(conditionsText),
+            ...(gameDate ? { gameDate } : {}),
+          },
+          ...(validFrom ? { validFrom } : {}),
+          ...(validUntil ? { validUntil } : {}),
         }),
-      });
+        },
+      );
       const rulePayload = await readJson(ruleResponse);
 
       if (!ruleResponse.ok) {
@@ -148,6 +201,16 @@ export default function AdminRulesPage() {
       form.reset();
       setRequiresIdentity(true);
       setRequiresBankDetails(true);
+      setSourceDocumentId(null);
+      setOrganizerName("");
+      setRuleName("");
+      setReimbursementEuros("");
+      setValidFrom("");
+      setValidUntil("");
+      setGameDate("");
+      setConstraints({});
+      setConditionsText("");
+      setEditingRuleId(null);
       await refreshRules();
       setMessage("Reglement cree. Verifiez-le puis approuvez-le.");
     } catch (error) {
@@ -180,42 +243,62 @@ export default function AdminRulesPage() {
     }
   }
 
+  function editRule(rule: Rule) {
+    setEditingRuleId(rule.id);
+    setSourceDocumentId(rule.sourceDocument.id);
+    setOrganizerName(rule.organizer.name);
+    setRuleName(rule.name);
+    setReimbursementEuros((rule.reimbursementCents / 100).toFixed(2));
+    setValidFrom(rule.validFrom?.slice(0, 10) ?? "");
+    setValidUntil(rule.validUntil?.slice(0, 10) ?? "");
+    setGameDate(readString(rule.constraints.gameDate)?.slice(0, 10) ?? "");
+    setConstraints(rule.constraints);
+    setConditionsText(formatConditions(rule.constraints));
+    const requiredDocuments = Array.isArray(rule.requiredDocuments) ? rule.requiredDocuments : [];
+    setRequiresIdentity(requiredDocuments.some((document) => isRequiredDocument(document, "IDENTITY_DOCUMENT")));
+    setRequiresBankDetails(requiredDocuments.some((document) => isRequiredDocument(document, "BANK_DETAILS")));
+    setMessage("Fiche chargee. Toute modification d'un reglement approuve le remettra en relecture.");
+  }
+
   const canManageRules = user?.role === "ADMIN";
 
   return (
-    <main className="min-h-screen bg-[#f8faff] px-6 py-8 text-[#080d2b]">
-      <div className="mx-auto max-w-5xl">
-        <a href="/dashboard" className="text-sm font-semibold text-[#5147f5]">
-          Retour au tableau de bord
-        </a>
-        <h1 className="mt-6 text-3xl font-bold">Reglements</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#52607a]">
-          Chaque reglement doit etre relu puis approuve avant d'etre utilise pour un dossier.
+    <AppShell active="admin" email={user?.email} isAdmin>
+      <div className="mx-auto max-w-[1280px] px-4 py-7 sm:px-7 lg:px-9 lg:py-9">
+        <p className="text-xs font-extrabold uppercase text-[#7a8499]">Administration</p>
+        <h1 className="mt-2 text-3xl font-extrabold text-[#102544]">Règlements des jeux</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667189]">
+          Chaque règlement est analysé, relu puis approuvé avant d’être utilisé pour un dossier client.
         </p>
-        <div className="mt-5 rounded-md border border-[#dfe5f4] bg-white p-4 text-sm text-[#52607a]">
+        <div className="mt-5 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4 text-sm text-[#344f8d]">
           {message}
         </div>
 
         {canManageRules ? (
           <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-            <form onSubmit={createRule} className="rounded-lg border border-[#dfe5f4] bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold">Nouveau reglement</h2>
+            <form onSubmit={createRule} className="surface p-5 sm:p-6">
+              <h2 className="text-lg font-extrabold text-[#102544]">Nouveau règlement</h2>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 PDF source
-                <input name="source" type="file" accept="application/pdf" className="font-normal" />
+                <input name="source" type="file" accept="application/pdf" disabled={editingRuleId !== null} className="field font-normal file:mr-3 file:rounded-md file:border-0 file:bg-[#e8efff] file:px-3 file:py-1 file:text-xs file:font-extrabold file:text-[#2457f5]" />
               </label>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Organisateur
-                <input name="organizerName" required className="rounded-md border border-[#dfe5f4] px-3 py-2 font-normal" placeholder="Orange" />
+                <input name="organizerName" value={organizerName} onChange={(event) => setOrganizerName(event.target.value)} required className="field font-normal" placeholder="Orange" />
               </label>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Nom de l'operation
-                <input name="name" required className="rounded-md border border-[#dfe5f4] px-3 py-2 font-normal" placeholder="Jeu TV - avril 2026" />
+                <input name="name" value={ruleName} onChange={(event) => setRuleName(event.target.value)} required className="field font-normal" placeholder="Jeu TV - avril 2026" />
               </label>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Montant estimatif (EUR)
-                <input name="reimbursementEuros" type="number" min="0" step="0.01" required className="rounded-md border border-[#dfe5f4] px-3 py-2 font-normal" />
+                <input name="reimbursementEuros" value={reimbursementEuros} onChange={(event) => setReimbursementEuros(event.target.value)} type="number" min="0" step="0.01" required className="field font-normal" />
               </label>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <label className="grid gap-2 text-sm font-semibold">Date du jeu<input value={gameDate} onChange={(event) => setGameDate(event.target.value)} type="date" className="field font-normal" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Début de validité<input value={validFrom} onChange={(event) => setValidFrom(event.target.value)} type="date" className="field font-normal" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Fin de validité<input value={validUntil} onChange={(event) => setValidUntil(event.target.value)} type="date" className="field font-normal" /></label>
+              </div>
               <label className="mt-4 flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={requiresIdentity} onChange={(event) => setRequiresIdentity(event.target.checked)} />
                 Demander une copie d'identite filigranee
@@ -224,11 +307,15 @@ export default function AdminRulesPage() {
                 <input type="checkbox" checked={requiresBankDetails} onChange={(event) => setRequiresBankDetails(event.target.checked)} />
                 Demander un RIB
               </label>
-              <div className="mt-5"><Button disabled={isBusy}>Creer pour relecture</Button></div>
+              <label className="mt-4 grid gap-2 text-sm font-semibold">
+                Conditions du jeu et du remboursement
+                <textarea value={conditionsText} onChange={(event) => setConditionsText(event.target.value)} rows={5} className="field font-normal" placeholder="Éligibilité: ...&#10;Remboursement: ..." />
+              </label>
+              <div className="mt-5"><Button disabled={isBusy}>{sourceDocumentId ? (editingRuleId ? "Enregistrer les modifications" : "Creer pour relecture") : "Analyser le PDF"}</Button></div>
             </form>
 
-            <section className="rounded-lg border border-[#dfe5f4] bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold">File de relecture</h2>
+            <section className="surface p-5 sm:p-6">
+              <h2 className="text-lg font-extrabold text-[#102544]">File de relecture</h2>
               <div className="mt-4 grid gap-3">
                 {rules.length === 0 ? <p className="text-sm text-[#52607a]">Aucun reglement cree.</p> : rules.map((rule) => (
                   <article key={rule.id} className="rounded-md border border-[#edf0f7] p-4">
@@ -242,9 +329,14 @@ export default function AdminRulesPage() {
                       </span>
                     </div>
                     <p className="mt-3 text-sm text-[#52607a]">Source: {rule.sourceDocument.originalName}</p>
+                    {readString(rule.constraints.gameDate) ? <p className="mt-2 text-sm text-[#52607a]">Date du jeu: {readString(rule.constraints.gameDate)}</p> : null}
+                    {formatConditions(rule.constraints) ? <p className="mt-2 whitespace-pre-line text-sm text-[#52607a]">{formatConditions(rule.constraints)}</p> : null}
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Button type="button" variant="secondary" disabled={isBusy} onClick={() => editRule(rule)}>Modifier</Button>
                     {rule.status === "NEEDS_REVIEW" ? (
-                      <div className="mt-4"><Button type="button" disabled={isBusy} onClick={() => approveRule(rule.id)}>Approuver</Button></div>
+                      <Button type="button" disabled={isBusy} onClick={() => approveRule(rule.id)}>Approuver</Button>
                     ) : null}
+                    </div>
                   </article>
                 ))}
               </div>
@@ -252,7 +344,7 @@ export default function AdminRulesPage() {
           </div>
         ) : null}
       </div>
-    </main>
+    </AppShell>
   );
 }
 
@@ -301,6 +393,47 @@ function readDocumentId(value: unknown): string | null {
   return typeof id === "string" ? id : null;
 }
 
+function readRuleCandidate(value: unknown): RuleCandidate | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.sourceDocumentId !== "string" ||
+    typeof candidate.organizerName !== "string" ||
+    typeof candidate.name !== "string" ||
+    typeof candidate.reimbursementCents !== "number" ||
+    !Array.isArray(candidate.requiredDocuments) ||
+    !candidate.constraints ||
+    typeof candidate.constraints !== "object" ||
+    Array.isArray(candidate.constraints) ||
+    typeof candidate.confidence !== "number"
+  ) {
+    return null;
+  }
+
+  const requiredDocuments = candidate.requiredDocuments.flatMap((document) => {
+    if (!document || typeof document !== "object") return [];
+    const requiredDocument = document as Record<string, unknown>;
+    return typeof requiredDocument.kind === "string" && typeof requiredDocument.label === "string" && typeof requiredDocument.required === "boolean"
+      ? [{ kind: requiredDocument.kind, label: requiredDocument.label, required: requiredDocument.required }]
+      : [];
+  });
+
+  return {
+    sourceDocumentId: candidate.sourceDocumentId,
+    organizerName: candidate.organizerName,
+    name: candidate.name,
+    reimbursementCents: candidate.reimbursementCents,
+    requiredDocuments,
+    constraints: candidate.constraints as Record<string, unknown>,
+    ...(typeof candidate.validFrom === "string" ? { validFrom: candidate.validFrom } : {}),
+    ...(typeof candidate.validUntil === "string" ? { validUntil: candidate.validUntil } : {}),
+    confidence: candidate.confidence,
+  };
+}
+
 function readRule(value: unknown): Rule | null {
   if (!value || typeof value !== "object") return null;
   const rule = value as Record<string, unknown>;
@@ -312,6 +445,9 @@ function readRule(value: unknown): Rule | null {
     typeof rule.status !== "string" ||
     typeof rule.name !== "string" ||
     typeof rule.reimbursementCents !== "number" ||
+    !rule.constraints ||
+    typeof rule.constraints !== "object" ||
+    Array.isArray(rule.constraints) ||
     !organizer ||
     typeof organizer.id !== "string" ||
     typeof organizer.name !== "string" ||
@@ -330,6 +466,9 @@ function readRule(value: unknown): Rule | null {
     organizer: { id: organizer.id, name: organizer.name },
     reimbursementCents: rule.reimbursementCents,
     requiredDocuments: rule.requiredDocuments,
+    constraints: rule.constraints as Record<string, unknown>,
+    validFrom: typeof rule.validFrom === "string" ? rule.validFrom : null,
+    validUntil: typeof rule.validUntil === "string" ? rule.validUntil : null,
     sourceDocument: {
       id: sourceDocument.id,
       originalName: sourceDocument.originalName,
@@ -340,4 +479,36 @@ function readRule(value: unknown): Rule | null {
 
 function formatEuros(cents: number): string {
   return `${(cents / 100).toFixed(2)} EUR`;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function isRequiredDocument(value: unknown, kind: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  const document = value as Record<string, unknown>;
+  return document.kind === kind && document.required === true;
+}
+
+function formatConditions(constraints: Record<string, unknown>): string {
+  const conditions = constraints.conditions;
+  if (!Array.isArray(conditions)) return "";
+
+  return conditions.flatMap((condition) => {
+    if (!condition || typeof condition !== "object") return [];
+    const value = condition as Record<string, unknown>;
+    return typeof value.title === "string" && typeof value.details === "string"
+      ? [`${value.title}: ${value.details}`]
+      : [];
+  }).join("\n");
+}
+
+function parseConditions(value: string): Array<{ title: string; details: string }> {
+  return value.split("\n").flatMap((line) => {
+    const separator = line.indexOf(":");
+    const title = separator === -1 ? "Condition" : line.slice(0, separator).trim();
+    const details = (separator === -1 ? line : line.slice(separator + 1)).trim();
+    return details ? [{ title: title || "Condition", details }] : [];
+  });
 }
