@@ -7,7 +7,7 @@
     "build": "nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/session.service.test.cjs"
+    "test": "pnpm build && node --test test/session.service.test.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

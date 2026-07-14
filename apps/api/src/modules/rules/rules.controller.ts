@@ -25,12 +25,38 @@ export class RulesController {
     return { rules: await this.rules.list() };
   }
 
+  @Post("extract/:documentId")
+  async extract(@Param("documentId") documentId: string, @Req() request: AuthenticatedRequest) {
+    return { candidate: await this.rules.extractCandidate(documentId, request.user!.id) };
+  }
+
+  @Get(":id")
+  async get(@Param("id") ruleId: string) {
+    return { rule: await this.rules.get(ruleId) };
+  }
+
   @Post()
   async create(@Body() body: CreateRuleBody, @Req() request: AuthenticatedRequest) {
     return {
       rule: await this.rules.create({
         actorId: request.user!.id,
         sourceDocumentId: body.sourceDocumentId ?? "",
+        organizerName: body.organizerName ?? "",
+        name: body.name ?? "",
+        reimbursementCents: body.reimbursementCents ?? -1,
+        requiredDocuments: body.requiredDocuments ?? [],
+        constraints: body.constraints ?? {},
+        ...(body.validFrom ? { validFrom: parseDate(body.validFrom) } : {}),
+        ...(body.validUntil ? { validUntil: parseDate(body.validUntil) } : {}),
+      }),
+    };
+  }
+
+  @Patch(":id")
+  async update(@Param("id") ruleId: string, @Body() body: CreateRuleBody, @Req() request: AuthenticatedRequest) {
+    return {
+      rule: await this.rules.update(ruleId, {
+        actorId: request.user!.id,
         organizerName: body.organizerName ?? "",
         name: body.name ?? "",
         reimbursementCents: body.reimbursementCents ?? -1,
