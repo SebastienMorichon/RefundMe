@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { NestFactory } from "@nestjs/core";
-import { json } from "express";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { readApiRuntimeConfig } from "@lydoc/config";
 import { AppModule } from "./app.module";
 import { applySecurityHeaders, createRateLimiter } from "./platform/http-protection";
@@ -10,11 +10,11 @@ import { applySecurityHeaders, createRateLimiter } from "./platform/http-protect
 async function bootstrap() {
   loadEnvironmentFile();
   const config = readApiRuntimeConfig(process.env);
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   app.enableShutdownHooks();
   app.getHttpAdapter().getInstance().set("trust proxy", config.trustProxy);
   // A 20 MiB file becomes about 26.7 MiB once encoded as base64 in JSON.
-  app.use(json({ limit: "30mb" }));
+  app.useBodyParser("json", { limit: "30mb" });
   app.use(applySecurityHeaders);
   app.use(createRateLimiter());
   app.enableCors({

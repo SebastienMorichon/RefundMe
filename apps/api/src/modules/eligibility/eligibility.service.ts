@@ -203,6 +203,7 @@ export class EligibilityService {
   private readonly caseDetailIncludes = {
     gameRule: { include: { organizer: true } },
     documents: { include: { document: { select: { id: true, kind: true, originalName: true, uploadedAt: true } } } },
+    payment: { select: { status: true, paidAt: true } },
   } as const;
 
   private async findOwnedCase(caseId: string, ownerId: string) {
@@ -247,6 +248,9 @@ export class EligibilityService {
         originalName: caseDocument.document.originalName,
         uploadedAt: caseDocument.document.uploadedAt,
       })),
+      payment: administrativeCase.payment
+        ? { status: administrativeCase.payment.status, paidAt: administrativeCase.payment.paidAt }
+        : null,
     };
   }
 
