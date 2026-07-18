@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { checkoutMatchesPayment } = require("../dist/modules/payments/payments.service.js");
+const { missingCustomerProfileFields } = require("../dist/modules/identity/customer-profile.js");
 
 const payment = {
   caseId: "case-1",
@@ -23,4 +24,20 @@ test("rejects a checkout with altered payment data", () => {
   assert.equal(checkoutMatchesPayment(payment, { ...session, amount_total: 1 }), false);
   assert.equal(checkoutMatchesPayment(payment, { ...session, id: "cs_test_other" }), false);
   assert.equal(checkoutMatchesPayment(payment, { ...session, metadata: { caseId: "case-2" } }), false);
+});
+
+test("requires the customer identity and contact details before checkout", () => {
+  const completeProfile = {
+    firstName: "Jean",
+    lastName: "Dupont",
+    postalAddress: "12 rue de la Republique",
+    postalCode: "75001",
+    city: "Paris",
+    country: "France",
+    phoneNumber: "06 12 34 56 78",
+    operatorCustomerReference: null,
+  };
+
+  assert.deepEqual(missingCustomerProfileFields(completeProfile), []);
+  assert.deepEqual(missingCustomerProfileFields({ ...completeProfile, phoneNumber: null }), ["Numero de telephone participant"]);
 });

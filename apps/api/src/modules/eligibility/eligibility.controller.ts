@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../identity/auth.guard";
 import type { AuthenticatedRequest } from "../identity/auth.types";
 import { EligibilityService } from "./eligibility.service";
@@ -23,9 +23,19 @@ export class EligibilityController {
     return { case: await this.eligibility.getCase(caseId, this.requireUserId(request)) };
   }
 
+  @Delete("cases/:id")
+  async deleteCase(@Param("id") caseId: string, @Req() request: AuthenticatedRequest) {
+    return { deleted: await this.eligibility.deleteCase(caseId, this.requireUserId(request)) };
+  }
+
   @Post("cases/:id/start")
   async startCase(@Param("id") caseId: string, @Req() request: AuthenticatedRequest) {
     return { case: await this.eligibility.startCase(caseId, this.requireUserId(request)) };
+  }
+
+  @Post("cases/:id/confirm")
+  async confirmCase(@Param("id") caseId: string, @Req() request: AuthenticatedRequest) {
+    return { case: await this.eligibility.confirmCase(caseId, this.requireUserId(request)) };
   }
 
   @Post("cases/:id/documents")

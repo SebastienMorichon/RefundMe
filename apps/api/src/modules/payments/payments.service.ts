@@ -6,16 +6,38 @@ import {
 } from "@nestjs/common";
 import { PaymentStatus } from "@prisma/client";
 import Stripe from "stripe";
+import { missingCustomerProfileFields } from "../identity/customer-profile";
+import { readCaseValidationSnapshot } from "../eligibility/case-snapshots";
 import { PrismaService } from "../prisma/prisma.service";
+import { ShippingService } from "../shipping/shipping.service";
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly shipping: ShippingService,
+  ) {}
 
   async createCheckoutSession(caseId: string, ownerId: string) {
     const administrativeCase = await this.prisma.administrativeCase.findFirst({
       where: { id: caseId, ownerId },
-      include: { owner: { select: { email: true } }, payment: true },
+      include: {
+        owner: {
+          select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+            postalAddress: true,
+            postalCode: true,
+            city: true,
+            country: true,
+            phoneNumber: true,
+            operatorCustomerReference: true,
+          },
+        },
+        payment: true,
+        postalShipment: true,
+      },
     });
     if (!administrativeCase) {
       throw new NotFoundException("Dossier introuvable.");
@@ -26,6 +48,19 @@ export class PaymentsService {
     if (administrativeCase.status !== "READY_TO_PAY") {
       throw new BadRequestException("Le dossier doit etre complet avant le paiement.");
     }
+    if (!administrativeCase.validatedAt || !readCaseValidationSnapshot(administrativeCase.validationSnapshotJson)) {
+      throw new BadRequestException("Validez le recapitulatif du dossier avant le paiement.");
+    }
+    const missingProfileFields = missingCustomerProfileFields(administrativeCase.owner);
+    if (missingProfileFields.length > 0) {
+      throw new BadRequestException(
+        `Completez votre profil avant le paiement : ${missingProfileFields.join(", ")}.`,
+      );
+    }
+    if (!administrativeCase.postalShipment || administrativeCase.postalShipment.status !== "QUOTED") {
+      throw new BadRequestException("Preparez et validez le devis postal avant le paiement.");
+    }
+    const checkoutAmountCents = administrativeCase.serviceFeeCents + administrativeCase.postalShipment.totalCents;
 
     const stripe = this.createStripeClient();
     const appUrl = (process.env.APP_URL ?? "http://localhost:3000").split(",")[0]?.trim();
@@ -51,6 +86,17 @@ export class PaymentsService {
             },
           },
         },
+        {
+          quantity: 1,
+          price_data: {
+            currency: "eur",
+            unit_amount: administrativeCase.postalShipment.totalCents,
+            product_data: {
+              name: "Impression et envoi postal",
+              description: administrativeCase.postalShipment.product === "vertesuivi" ? "Lettre verte suivie" : "Lettre verte",
+            },
+          },
+        },
       ],
       metadata: { caseId: administrativeCase.id, ownerId },
       payment_intent_data: { metadata: { caseId: administrativeCase.id, ownerId } },
@@ -63,13 +109,13 @@ export class PaymentsService {
       where: { caseId: administrativeCase.id },
       create: {
         caseId: administrativeCase.id,
-        amountCents: administrativeCase.serviceFeeCents,
+        amountCents: checkoutAmountCents,
         currency: "eur",
         stripeCheckoutSession: session.id,
       },
       update: {
         status: PaymentStatus.PENDING,
-        amountCents: administrativeCase.serviceFeeCents,
+        amountCents: checkoutAmountCents,
         currency: "eur",
         stripeCheckoutSession: session.id,
         stripePaymentIntent: null,
@@ -131,6 +177,7 @@ export class PaymentsService {
         data: { status: "PAID" },
       }),
     ]);
+    await this.shipping.submitPaidCase(caseId);
   }
 
   private async markCheckoutFailed(session: Stripe.Checkout.Session): Promise<void> {

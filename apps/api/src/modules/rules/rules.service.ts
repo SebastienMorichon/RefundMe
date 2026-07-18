@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, RuleStatus } from "@prisma/client";
+import { DocumentKind, Prisma, RuleStatus } from "@prisma/client";
 import { MistralAiProvider, MistralOcrProvider, LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -46,7 +46,7 @@ export class RulesService {
     }
 
     const existingCandidate = await this.prisma.documentAnalysis.findFirst({
-      where: { documentId: document.id, schemaName: "game-rule-candidate-v2" },
+      where: { documentId: document.id, schemaName: "game-rule-candidate-v3" },
       orderBy: { createdAt: "desc" },
     });
     if (existingCandidate) {
@@ -84,7 +84,7 @@ export class RulesService {
         data: {
           documentId: document.id,
           provider: ocr.provider,
-          schemaName: "game-rule-candidate-v2",
+          schemaName: "game-rule-candidate-v3",
           resultJson: candidate as Prisma.InputJsonValue,
           ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
         },
@@ -104,6 +104,7 @@ export class RulesService {
 
   async list() {
     const rules = await this.prisma.gameRule.findMany({
+      where: { sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
       include: {
         organizer: true,
         sourceDocument: { select: { id: true, originalName: true, uploadedAt: true } },
@@ -116,8 +117,8 @@ export class RulesService {
   }
 
   async get(ruleId: string) {
-    const rule = await this.prisma.gameRule.findUnique({
-      where: { id: ruleId },
+    const rule = await this.prisma.gameRule.findFirst({
+      where: { id: ruleId, sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
       include: {
         organizer: true,
         sourceDocument: { select: { id: true, originalName: true, uploadedAt: true } },
@@ -133,7 +134,9 @@ export class RulesService {
 
   async update(ruleId: string, input: UpdateGameRuleInput) {
     this.assertInput({ ...input, sourceDocumentId: "existing" });
-    const existingRule = await this.prisma.gameRule.findUnique({ where: { id: ruleId } });
+    const existingRule = await this.prisma.gameRule.findFirst({
+      where: { id: ruleId, sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
+    });
     if (!existingRule) {
       throw new NotFoundException("Reglement introuvable.");
     }
@@ -214,8 +217,8 @@ export class RulesService {
   }
 
   async approve(ruleId: string, actorId: string) {
-    const rule = await this.prisma.gameRule.findUnique({
-      where: { id: ruleId },
+    const rule = await this.prisma.gameRule.findFirst({
+      where: { id: ruleId, sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
       include: {
         organizer: true,
         sourceDocument: { select: { id: true, originalName: true, uploadedAt: true } },
@@ -241,6 +244,34 @@ export class RulesService {
 
     await this.writeAuditLog(actorId, "GAME_RULE_APPROVED", approvedRule.id, {});
     return this.present(approvedRule);
+  }
+
+  async delete(ruleId: string, actorId: string): Promise<void> {
+    const rule = await this.prisma.gameRule.findFirst({
+      where: { id: ruleId, sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
+      select: { id: true, name: true, organizer: { select: { name: true } }, _count: { select: { cases: true } } },
+    });
+
+    if (!rule) {
+      throw new NotFoundException("Reglement introuvable.");
+    }
+
+    if (rule._count.cases > 0) {
+      throw new BadRequestException("Ce reglement est deja utilise par un dossier client et ne peut pas etre supprime.");
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.gameRule.delete({ where: { id: rule.id } }),
+      this.prisma.auditLog.create({
+        data: {
+          actorId,
+          action: "GAME_RULE_DELETED",
+          entityType: "GameRule",
+          entityId: rule.id,
+          metadata: { name: rule.name, organizerName: rule.organizer.name },
+        },
+      }),
+    ]);
   }
 
   private assertInput(input: CreateGameRuleInput): void {
@@ -302,20 +333,37 @@ export class RulesService {
     const result = await this.mistralAi.extractStructuredData<unknown>({
       locale: "fr-FR",
       documentText: text,
-      instruction: `Retourne uniquement un objet JSON avec ces champs:
+      instruction: `Tu analyses un reglement de jeu francais afin de preparer, plus tard, une demande de remboursement de frais SMS ou de participation.
+Retourne uniquement un objet JSON avec ces champs:
 {
   "name": "nom du jeu ou de l'operation, ou chaine vide",
   "organizerName": "organisateur, ou chaine vide",
   "gameDate": "date ISO YYYY-MM-DD ou null",
   "validFrom": "date ISO YYYY-MM-DD ou null",
   "validUntil": "date ISO YYYY-MM-DD ou null",
-  "reimbursementCents": "montant entier en centimes, ou 0 si absent",
+  "reimbursementCents": 0,
   "conditions": [{"title": "condition courte", "details": "formulation fidele au reglement"}],
   "requiredDocuments": [{"kind": "ORANGE_INVOICE|IDENTITY_DOCUMENT|BANK_DETAILS|PURCHASE_PROOF|OTHER", "label": "piece demandee", "required": true}],
-  "constraints": {"participationMechanism": "...", "eligibilityConditions": ["..."], "reimbursementConditions": ["..."], "deadline": "...", "keywords": ["..."]},
-  "confidence": "nombre entre 0 et 1"
+  "constraints": {
+    "participationMechanism": "SMS+, site web, appel ou autre, ou chaine vide",
+    "participationPeriod": "periode de participation fidele au reglement, ou chaine vide",
+    "eligibilityConditions": ["conditions d'eligibilite fidelement reprises"],
+    "reimbursementConditions": ["conditions precises du remboursement, plafonds inclus"],
+    "excludedCosts": ["frais exclus ou chaine vide"],
+    "reimbursementDeadline": "date ISO YYYY-MM-DD si calculable, sinon formulation fidele ou chaine vide",
+    "reimbursementRecipient": "service ou destinataire de la demande, ou chaine vide",
+    "reimbursementAddress": "adresse postale complete, ou chaine vide",
+    "reimbursementEmail": "adresse e-mail de reclamation, ou chaine vide",
+    "reimbursementMethod": "virement, cheque ou autre, ou chaine vide",
+    "requiredLetterMentions": ["mentions ou justificatifs a joindre a la lettre"],
+    "keywords": ["mots utiles a la detection"],
+    "sourceReferences": ["article ou section du reglement si explicite"]
+  },
+  "confidence": 0.0
 }
-N'invente aucune information. Les conditions de remboursement et d'eligibilite doivent etre distinctes, precises et fidelement reprises du texte.`,
+Lis l'integralite du texte OCR, y compris les annexes. Recherche en priorite les articles contenant les termes remboursement, frais de participation, SMS, justificatif, RIB, facture, demande, adresse et delai.
+Le champ reimbursementCents est le montant remboursable par participation, exprime sous forme de nombre entier de centimes. Le champ confidence est un nombre entre 0 et 1.
+N'invente aucune information. Ne deduis jamais une adresse, une date ou une piece demandee. Les conditions de remboursement et d'eligibilite doivent etre distinctes, precises et fidelement reprises du texte. Tous les champs doivent etre presents dans le JSON, meme lorsqu'ils sont vides.`,
     });
 
     return normalizeGameRuleCandidate(result.data, ocrConfidence);
@@ -357,15 +405,16 @@ function normalizeGameRuleCandidate(value: unknown, ocrConfidence: number | unde
   const constraints = input.constraints && typeof input.constraints === "object" && !Array.isArray(input.constraints)
     ? input.constraints as Record<string, unknown>
     : {};
-  const conditions = Array.isArray(input.conditions)
-    ? input.conditions.flatMap((condition) => {
+  const rawConditions = Array.isArray(input.conditions)
+    ? input.conditions
+    : Array.isArray(constraints.conditions) ? constraints.conditions : [];
+  const conditions = rawConditions.flatMap((condition) => {
         if (!condition || typeof condition !== "object") return [];
         const value = condition as Record<string, unknown>;
         return typeof value.title === "string" && typeof value.details === "string"
           ? [{ title: value.title, details: value.details }]
           : [];
-      })
-    : [];
+      });
   const requiredDocuments = Array.isArray(input.requiredDocuments)
     ? input.requiredDocuments.flatMap((document) => {
         if (!document || typeof document !== "object") return [];
@@ -375,15 +424,17 @@ function normalizeGameRuleCandidate(value: unknown, ocrConfidence: number | unde
           : [];
       })
     : [];
-  const aiConfidence = typeof input.confidence === "number" && input.confidence >= 0 && input.confidence <= 1
-    ? input.confidence
+  const parsedConfidence = readFiniteNumber(input.confidence);
+  const aiConfidence = parsedConfidence !== undefined && parsedConfidence >= 0 && parsedConfidence <= 1
+    ? parsedConfidence
     : 0.4;
+  const parsedReimbursementCents = readFiniteNumber(input.reimbursementCents);
 
   return {
     organizerName: typeof input.organizerName === "string" ? input.organizerName : "",
     name: typeof input.name === "string" ? input.name : "",
-    reimbursementCents: typeof input.reimbursementCents === "number" && Number.isInteger(input.reimbursementCents) && input.reimbursementCents >= 0
-      ? input.reimbursementCents
+    reimbursementCents: parsedReimbursementCents !== undefined && Number.isInteger(parsedReimbursementCents) && parsedReimbursementCents >= 0
+      ? parsedReimbursementCents
       : 0,
     requiredDocuments,
     constraints: {
@@ -395,6 +446,13 @@ function normalizeGameRuleCandidate(value: unknown, ocrConfidence: number | unde
     ...(typeof input.validUntil === "string" ? { validUntil: input.validUntil } : {}),
     confidence: ocrConfidence === undefined ? aiConfidence : Math.min(aiConfidence, ocrConfidence),
   };
+}
+
+function readFiniteNumber(value: unknown): number | undefined {
+  const parsed = typeof value === "number"
+    ? value
+    : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {

@@ -21,7 +21,7 @@ import { Brand } from "./brand";
 
 type AppShellProps = {
   children: ReactNode;
-  active?: "dashboard" | "documents" | "cases" | "admin";
+  active?: "dashboard" | "documents" | "cases" | "profile" | "admin" | "admin-invoices";
   email?: string | undefined;
   isAdmin?: boolean;
 };
@@ -59,14 +59,19 @@ export function AppShell({ children, active = "dashboard", email, isAdmin = fals
             );
           })}
           {isAdmin ? (
-            <a href="/admin/rules" className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "admin" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
-              <ShieldCheck size={18} /> Règlements
-            </a>
+            <>
+              <a href="/admin/rules" className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "admin" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
+                <ShieldCheck size={18} /> Règlements
+              </a>
+              <a href="/admin/invoices" className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "admin-invoices" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
+                <FileText size={18} /> Factures clients
+              </a>
+            </>
           ) : null}
         </nav>
         <div className="mt-auto border-t border-white/10 px-3 py-4">
           <a href="/faq" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"><CircleHelp size={18} /> Aide</a>
-          <a href="/dashboard#profil" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"><Settings size={18} /> Paramètres</a>
+          <a href="/profile" className={`flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "profile" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}><Settings size={18} /> Paramètres</a>
           <a href="/connexion" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"><LogOut size={18} /> Changer de compte</a>
         </div>
       </aside>
@@ -111,7 +116,8 @@ export function AppShell({ children, active = "dashboard", email, isAdmin = fals
                 const Icon = item.icon;
                 return <a key={item.id} href={item.href} onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea] hover:bg-white/10"><Icon size={18} /> {item.label}</a>;
               })}
-              {isAdmin ? <a href="/admin/rules" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><FileCheck2 size={18} /> Règlements</a> : null}
+              {isAdmin ? <><a href="/admin/rules" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><FileCheck2 size={18} /> Règlements</a><a href="/admin/invoices" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><FileText size={18} /> Factures clients</a></> : null}
+              <a href="/profile" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><Settings size={18} /> Paramètres</a>
             </nav>
           </aside>
         </div>

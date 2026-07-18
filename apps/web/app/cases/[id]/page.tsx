@@ -14,10 +14,11 @@ import {
   LockKeyhole,
   ReceiptText,
   ShieldCheck,
+  Trash2,
   UploadCloud,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "../../../components/app-shell";
 
 type RequiredDocument = { kind: string; label: string; required: boolean; supplied: boolean };
@@ -26,10 +27,33 @@ type CaseDetail = {
   status: string;
   estimatedRecoverableCents: number;
   serviceFeeCents: number;
-  rule: { id: string; name: string; organizer: string };
+  rule: { id: string; version: number; name: string; organizer: string };
   requiredDocuments: RequiredDocument[];
   missingDocuments: RequiredDocument[];
+  customerProfile: { complete: boolean; missingFields: string[] };
   payment: { status: string; paidAt: string | null } | null;
+  validation: { validatedAt: string } | null;
+  review: {
+    reimbursementRecipient: string;
+    reimbursementAddress: string;
+    reimbursementDeadline: string;
+    detectedSmsCount: number;
+  };
+  postalShipment: {
+    provider: string;
+    environment: string;
+    product: string;
+    status: string;
+    postageCents: number;
+    providerServiceCents: number;
+    totalCents: number;
+    trackingNumber: string | null;
+    errorMessage: string | null;
+    quotedAt: string | null;
+    submittedAt: string | null;
+    deliveredAt: string | null;
+    simulation: boolean;
+  } | null;
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -37,11 +61,14 @@ const maxDocumentSizeBytes = 20 * 1024 * 1024;
 
 export default function CasePage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const caseId = params.id;
   const [administrativeCase, setAdministrativeCase] = useState<CaseDetail | null>(null);
   const [message, setMessage] = useState("Chargement du dossier...");
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
   const [isBusy, setIsBusy] = useState(false);
+  const [confirmationAccepted, setConfirmationAccepted] = useState(false);
+  const [postalAccepted, setPostalAccepted] = useState(false);
 
   useEffect(() => {
     if (!caseId) return;
@@ -75,7 +102,9 @@ export default function CasePage() {
         setMessage("Paiement confirmé. Votre dossier final est prêt à être téléchargé.");
         setMessageTone("success");
       } else if (parsedCase.status === "READY_TO_PAY") {
-        setMessage("Votre dossier est complet. Vérifiez l’aperçu avant de procéder au paiement.");
+        setMessage(parsedCase.validation
+          ? "Votre récapitulatif est validé. Vous pouvez consulter l’aperçu puis payer."
+          : "Votre dossier est complet. Vérifiez et validez le récapitulatif avant le paiement.");
         setMessageTone("success");
       } else if (parsedCase.status === "DRAFT") {
         setMessage("Le règlement a été identifié. Lancez la préparation pour voir les pièces utiles.");
@@ -227,6 +256,103 @@ export default function CasePage() {
     }
   }
 
+  async function confirmCase() {
+    if (!confirmationAccepted) {
+      setMessage("Confirmez que les informations du récapitulatif sont exactes.");
+      setMessageTone("error");
+      return;
+    }
+    setIsBusy(true);
+    setMessage("Validation du récapitulatif...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/confirm`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = await readJson(response);
+      const parsedCase = readCase(payload.case);
+      if (!response.ok || !parsedCase) {
+        throw new Error(errorMessage(payload, "Impossible de valider le dossier."));
+      }
+      setAdministrativeCase(parsedCase);
+      setConfirmationAccepted(false);
+      setMessage("Récapitulatif validé. Les informations du dossier sont maintenant figées.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible de valider le dossier.");
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function preparePostalQuote() {
+    if (!postalAccepted) {
+      setMessage("Autorisez la préparation de l’envoi postal pour obtenir le devis.");
+      setMessageTone("error");
+      return;
+    }
+    setIsBusy(true);
+    setMessage("Préparation du dossier pour l’impression et calcul des frais postaux...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/postal-quote`, { method: "POST", credentials: "include" });
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(errorMessage(payload, "Impossible de calculer les frais postaux."));
+      const loaded = await loadCase();
+      if (!loaded?.postalShipment) throw new Error("Le devis postal n’a pas été enregistré.");
+      setPostalAccepted(false);
+      setMessage(loaded.postalShipment.simulation ? "Devis postal simulé. Aucun courrier réel ne sera envoyé." : "Devis postal prêt. L’envoi sera déclenché après le paiement.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible de préparer l’envoi postal.");
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function refreshPostalTracking() {
+    setIsBusy(true);
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/postal-shipment/refresh`, { method: "POST", credentials: "include" });
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(errorMessage(payload, "Impossible d’actualiser le suivi."));
+      await loadCase();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible d’actualiser le suivi.");
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function deleteCase() {
+    if (!window.confirm("Supprimer ce dossier ? Les documents déposés resteront dans votre espace.")) {
+      return;
+    }
+
+    setIsBusy(true);
+    setMessage("Suppression du dossier...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = await readJson(response);
+      if (!response.ok || payload.deleted !== true) {
+        throw new Error(errorMessage(payload, "Impossible de supprimer le dossier."));
+      }
+      router.push("/dashboard#dossiers");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible de supprimer le dossier.");
+      setMessageTone("error");
+      setIsBusy(false);
+    }
+  }
+
   const missingDocuments = administrativeCase?.missingDocuments ?? [];
   const progress = progressIndex(administrativeCase?.status ?? "DRAFT");
   const isPaid = administrativeCase?.payment?.status === "PAID";
@@ -243,7 +369,19 @@ export default function CasePage() {
             <h1 className="mt-2 text-2xl font-extrabold text-[#102544] sm:text-3xl">{administrativeCase?.rule.name ?? "Chargement..."}</h1>
             <p className="mt-2 text-sm text-[#667189]">{administrativeCase?.rule.organizer ?? ""}</p>
           </div>
-          {administrativeCase ? <StatusBadge status={administrativeCase.status} paid={isPaid} /> : null}
+          {administrativeCase ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={deleteCase}
+                disabled={isBusy}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#f1b9ac] bg-white px-3 text-xs font-extrabold text-[#b94a35] hover:bg-[#fff0ec] disabled:opacity-50"
+              >
+                <Trash2 size={15} /> Supprimer le dossier
+              </button>
+              <StatusBadge status={administrativeCase.status} paid={isPaid} />
+            </div>
+          ) : null}
         </div>
 
         <div className={`mt-6 flex items-start gap-3 border-l-4 p-4 text-sm leading-6 ${messageTone === "success" ? "border-[#16875b] bg-[#e8f7f0] text-[#326950]" : messageTone === "error" ? "border-[#e9654b] bg-[#fff0ec] text-[#8e3d2c]" : "border-[#2457f5] bg-[#eef3ff] text-[#344f8d]"}`} role="status">
@@ -318,10 +456,54 @@ export default function CasePage() {
                   <section className="surface border-t-4 border-t-[#16875b] p-5 sm:p-6">
                     <span className="grid h-11 w-11 place-items-center rounded-md bg-[#e8f7f0] text-[#16875b]">{isPaid ? <Download size={21} /> : <CheckCircle2 size={22} />}</span>
                     <h2 className="mt-5 text-lg font-extrabold text-[#102544]">{isPaid ? "Votre dossier final est prêt." : "Votre dossier est complet."}</h2>
-                    <p className="mt-3 text-sm leading-6 text-[#667189]">{isPaid ? "Téléchargez le PDF complet à transmettre à l’organisateur." : "Consultez l’aperçu puis réglez les frais de préparation pour débloquer le dossier final."}</p>
-                    <div className="mt-5 flex items-center justify-between border-y border-[#e2e8f0] py-4"><span className="text-sm font-bold text-[#536078]">Frais de préparation</span><span className="text-lg font-extrabold text-[#102544]">{formatCents(administrativeCase.serviceFeeCents)}</span></div>
-                    <button type="button" onClick={openPacket} disabled={isBusy} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#b9c8df] bg-white px-5 text-sm font-extrabold text-[#2457f5] hover:bg-[#f4f7ff] disabled:opacity-50">{isPaid ? <Download size={17} /> : <Eye size={17} />} {isPaid ? "Télécharger le dossier final" : "Voir l’aperçu du dossier"}</button>
-                    {!isPaid ? <button type="button" onClick={startCheckout} disabled={isBusy} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><CircleDollarSign size={17} /> Payer {formatCents(administrativeCase.serviceFeeCents)}</button> : null}
+                    <p className="mt-3 text-sm leading-6 text-[#667189]">Vérifiez les informations qui seront utilisées dans la demande de remboursement.</p>
+                    {!administrativeCase.customerProfile.complete ? (
+                      <div className="mt-5 border-l-4 border-[#d47a22] bg-[#fff4e7] p-4 text-sm leading-6 text-[#7d4c13]">
+                        <p className="font-extrabold">Informations personnelles à compléter</p>
+                        <p className="mt-1">{administrativeCase.customerProfile.missingFields.join(", ")}</p>
+                        <a href="/profile" className="mt-3 inline-flex font-extrabold text-[#2457f5]">Compléter mon profil</a>
+                      </div>
+                    ) : null}
+                    <dl className="mt-5 divide-y divide-[#e2e8f0] border-y border-[#e2e8f0] text-sm">
+                      <ReviewLine label="Jeu" value={`${administrativeCase.rule.name} · règlement v${administrativeCase.rule.version}`} />
+                      <ReviewLine label="Destinataire" value={administrativeCase.review.reimbursementRecipient} />
+                      {administrativeCase.review.reimbursementAddress ? <ReviewLine label="Adresse d’envoi" value={administrativeCase.review.reimbursementAddress} /> : null}
+                      {administrativeCase.review.reimbursementDeadline ? <ReviewLine label="Délai" value={administrativeCase.review.reimbursementDeadline} /> : null}
+                      <ReviewLine label="SMS détectés" value={String(administrativeCase.review.detectedSmsCount)} />
+                      <ReviewLine label="Montant demandé" value={formatCents(administrativeCase.estimatedRecoverableCents)} />
+                      <ReviewLine label="Frais de préparation" value={formatCents(administrativeCase.serviceFeeCents)} strong />
+                      {administrativeCase.postalShipment ? <ReviewLine label="Impression et affranchissement" value={formatCents(administrativeCase.postalShipment.totalCents)} strong /> : null}
+                    </dl>
+                    {administrativeCase.validation ? (
+                      <p className="mt-4 flex items-center gap-2 text-xs font-bold text-[#16875b]"><ShieldCheck size={16} /> Informations figées le {formatDateTime(administrativeCase.validation.validatedAt)}</p>
+                    ) : (
+                      <>
+                        <label className="mt-5 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[#34415d]">
+                          <input type="checkbox" checked={confirmationAccepted} onChange={(event) => setConfirmationAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#2457f5]" />
+                          <span>Je confirme que mes coordonnées, les pièces et les informations ci-dessus sont exactes.</span>
+                        </label>
+                        <button type="button" onClick={confirmCase} disabled={isBusy || !confirmationAccepted || !administrativeCase.customerProfile.complete} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><ShieldCheck size={17} /> Valider mes informations</button>
+                      </>
+                    )}
+                    {administrativeCase.validation && !administrativeCase.postalShipment ? (
+                      <div className="mt-5 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4">
+                        <p className="text-sm font-extrabold text-[#102544]">Préparer l’envoi postal</p>
+                        <p className="mt-2 text-xs leading-5 text-[#536078]">Le dossier complet sera transmis au prestataire d’impression afin de calculer son prix. Aucun envoi n’est validé avant le paiement.</p>
+                        <label className="mt-3 flex cursor-pointer items-start gap-3 text-xs leading-5 text-[#34415d]"><input type="checkbox" checked={postalAccepted} onChange={(event) => setPostalAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#2457f5]" /><span>J’autorise la préparation de mon dossier pour son impression et son expédition postale.</span></label>
+                        <button type="button" onClick={preparePostalQuote} disabled={isBusy || !postalAccepted} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-4 text-xs font-extrabold text-white disabled:opacity-50"><ReceiptText size={16} /> Calculer les frais postaux</button>
+                      </div>
+                    ) : null}
+                    {administrativeCase.postalShipment ? (
+                      <div className="mt-5 bg-[#f8fafc] p-4 text-sm">
+                        <div className="flex items-center justify-between gap-3"><span className="font-bold text-[#536078]">Envoi</span><span className="font-extrabold text-[#102544]">{formatPostalStatus(administrativeCase.postalShipment.status)}</span></div>
+                        <p className="mt-2 text-xs text-[#667189]">{administrativeCase.postalShipment.product === "vertesuivi" ? "Lettre verte suivie" : "Lettre verte"}{administrativeCase.postalShipment.simulation ? " · simulation" : ""}</p>
+                        {administrativeCase.postalShipment.trackingNumber ? <p className="mt-2 text-xs font-bold text-[#34415d]">Suivi : {administrativeCase.postalShipment.trackingNumber}</p> : null}
+                        {administrativeCase.postalShipment.errorMessage ? <p className="mt-2 text-xs font-bold text-[#b94a35]">{administrativeCase.postalShipment.errorMessage}</p> : null}
+                        {["SUBMITTED", "PRODUCED", "HANDED_OVER", "IN_TRANSIT"].includes(administrativeCase.postalShipment.status) ? <button type="button" onClick={refreshPostalTracking} disabled={isBusy} className="mt-3 text-xs font-extrabold text-[#2457f5]">Actualiser le suivi</button> : null}
+                      </div>
+                    ) : null}
+                    <button type="button" onClick={openPacket} disabled={isBusy || !administrativeCase.validation} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#b9c8df] bg-white px-5 text-sm font-extrabold text-[#2457f5] hover:bg-[#f4f7ff] disabled:opacity-50">{isPaid ? <Download size={17} /> : <Eye size={17} />} {isPaid ? "Télécharger le dossier final" : "Voir l’aperçu du dossier"}</button>
+                    {!isPaid ? <button type="button" onClick={startCheckout} disabled={isBusy || !administrativeCase.customerProfile.complete || !administrativeCase.validation || administrativeCase.postalShipment?.status !== "QUOTED"} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><CircleDollarSign size={17} /> Payer {formatCents(administrativeCase.serviceFeeCents + (administrativeCase.postalShipment?.totalCents ?? 0))}</button> : null}
                   </section>
                 ) : null}
               </div>
@@ -337,6 +519,10 @@ export default function CasePage() {
 
 function Metric({ label, value, positive = false }: { label: string; value: string; positive?: boolean }) {
   return <div className="p-5 sm:p-6"><p className="text-xs font-bold text-[#7a8499]">{label}</p><p className={`mt-2 text-2xl font-extrabold ${positive ? "text-[#16875b]" : "text-[#102544]"}`}>{value}</p></div>;
+}
+
+function ReviewLine({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return <div className="grid gap-1 py-3 sm:grid-cols-[145px_1fr]"><dt className="font-bold text-[#7a8499]">{label}</dt><dd className={strong ? "font-extrabold text-[#102544]" : "font-semibold text-[#34415d]"}>{value || "Non renseigné"}</dd></div>;
 }
 
 function StatusBadge({ status, paid }: { status: string; paid: boolean }) {
@@ -376,7 +562,9 @@ function readCase(value: unknown): CaseDetail | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   const rule = item.rule as Record<string, unknown> | undefined;
-  if (typeof item.id !== "string" || typeof item.status !== "string" || typeof item.estimatedRecoverableCents !== "number" || typeof item.serviceFeeCents !== "number" || !rule || typeof rule.id !== "string" || typeof rule.name !== "string" || typeof rule.organizer !== "string" || !Array.isArray(item.requiredDocuments) || !Array.isArray(item.missingDocuments)) return null;
+  const customerProfile = item.customerProfile as Record<string, unknown> | undefined;
+  const review = item.review as Record<string, unknown> | undefined;
+  if (typeof item.id !== "string" || typeof item.status !== "string" || typeof item.estimatedRecoverableCents !== "number" || typeof item.serviceFeeCents !== "number" || !rule || typeof rule.id !== "string" || typeof rule.version !== "number" || typeof rule.name !== "string" || typeof rule.organizer !== "string" || !Array.isArray(item.requiredDocuments) || !Array.isArray(item.missingDocuments) || !customerProfile || typeof customerProfile.complete !== "boolean" || !Array.isArray(customerProfile.missingFields) || !review || typeof review.reimbursementRecipient !== "string" || typeof review.reimbursementAddress !== "string" || typeof review.reimbursementDeadline !== "string" || typeof review.detectedSmsCount !== "number") return null;
   const parseDocument = (raw: unknown): RequiredDocument | null => {
     if (!raw || typeof raw !== "object") return null;
     const document = raw as Record<string, unknown>;
@@ -385,17 +573,57 @@ function readCase(value: unknown): CaseDetail | null {
       : null;
   };
   const payment = item.payment && typeof item.payment === "object" ? item.payment as Record<string, unknown> : null;
+  const validation = item.validation && typeof item.validation === "object" ? item.validation as Record<string, unknown> : null;
+  const postalShipment = item.postalShipment && typeof item.postalShipment === "object" ? item.postalShipment as Record<string, unknown> : null;
   return {
     id: item.id,
     status: item.status,
     estimatedRecoverableCents: item.estimatedRecoverableCents,
     serviceFeeCents: item.serviceFeeCents,
-    rule: { id: rule.id, name: rule.name, organizer: rule.organizer },
+    rule: { id: rule.id, version: rule.version, name: rule.name, organizer: rule.organizer },
     requiredDocuments: item.requiredDocuments.flatMap((raw) => { const parsed = parseDocument(raw); return parsed ? [parsed] : []; }),
     missingDocuments: item.missingDocuments.flatMap((raw) => { const parsed = parseDocument(raw); return parsed ? [parsed] : []; }),
+    customerProfile: {
+      complete: customerProfile.complete,
+      missingFields: customerProfile.missingFields.filter((field): field is string => typeof field === "string"),
+    },
     payment: payment && typeof payment.status === "string"
       ? { status: payment.status, paidAt: typeof payment.paidAt === "string" ? payment.paidAt : null }
       : null,
+    validation: validation && typeof validation.validatedAt === "string"
+      ? { validatedAt: validation.validatedAt }
+      : null,
+    review: {
+      reimbursementRecipient: review.reimbursementRecipient,
+      reimbursementAddress: review.reimbursementAddress,
+      reimbursementDeadline: review.reimbursementDeadline,
+      detectedSmsCount: review.detectedSmsCount,
+    },
+    postalShipment: readPostalShipment(postalShipment),
+  };
+}
+
+function readPostalShipment(value: Record<string, unknown> | null): CaseDetail["postalShipment"] {
+  if (!value) return null;
+  if (
+    typeof value.provider !== "string" || typeof value.environment !== "string" || typeof value.product !== "string" ||
+    typeof value.status !== "string" || typeof value.postageCents !== "number" ||
+    typeof value.providerServiceCents !== "number" || typeof value.totalCents !== "number" || typeof value.simulation !== "boolean"
+  ) return null;
+  return {
+    provider: value.provider,
+    environment: value.environment,
+    product: value.product,
+    status: value.status,
+    postageCents: value.postageCents,
+    providerServiceCents: value.providerServiceCents,
+    totalCents: value.totalCents,
+    trackingNumber: typeof value.trackingNumber === "string" ? value.trackingNumber : null,
+    errorMessage: typeof value.errorMessage === "string" ? value.errorMessage : null,
+    quotedAt: typeof value.quotedAt === "string" ? value.quotedAt : null,
+    submittedAt: typeof value.submittedAt === "string" ? value.submittedAt : null,
+    deliveredAt: typeof value.deliveredAt === "string" ? value.deliveredAt : null,
+    simulation: value.simulation,
   };
 }
 
@@ -403,8 +631,27 @@ function formatCents(cents: number): string {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" }).format(new Date(value));
+}
+
 function formatStatus(status: string): string {
   const labels: Record<string, string> = { DRAFT: "À préparer", WAITING_FOR_USER_DOCUMENTS: "Pièces attendues", READY_TO_PAY: "Dossier complet", PAID: "Payé", SENT: "Envoyé", REFUNDED: "Remboursé", REJECTED: "Refusé" };
+  return labels[status] ?? status;
+}
+
+function formatPostalStatus(status: string): string {
+  const labels: Record<string, string> = {
+    DRAFT: "Brouillon",
+    QUOTED: "Devis prêt",
+    SUBMITTED: "Transmis à l’imprimeur",
+    PRODUCED: "Imprimé et mis sous pli",
+    HANDED_OVER: "Remis à La Poste",
+    IN_TRANSIT: "En cours d’acheminement",
+    DELIVERED: "Distribué",
+    FAILED: "Action requise",
+    CANCELLED: "Annulé",
+  };
   return labels[status] ?? status;
 }
 

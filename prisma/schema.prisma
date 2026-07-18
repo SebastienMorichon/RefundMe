@@ -62,13 +62,33 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PostalShipmentStatus {
+  DRAFT
+  QUOTED
+  SUBMITTED
+  PRODUCED
+  HANDED_OVER
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(USER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  email                     String   @unique
+  passwordHash              String
+  role                      UserRole @default(USER)
+  firstName                 String?
+  lastName                  String?
+  postalAddress             String?
+  postalCode                String?
+  city                      String?
+  country                   String?
+  phoneNumber               String?
+  operatorCustomerReference String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
   documents    Document[]
   cases        AdministrativeCase[]
@@ -162,6 +182,8 @@ model AdministrativeCase {
   serviceFeeCents            Int        @default(299)
   confidence                 Decimal?   @db.Decimal(5, 4)
   complianceSnapshotJson      Json
+  validatedAt                 DateTime?
+  validationSnapshotJson      Json?
   createdAt                  DateTime   @default(now())
   updatedAt                  DateTime   @updatedAt
 
@@ -170,6 +192,7 @@ model AdministrativeCase {
   documents                  CaseDocument[]
   payment                    Payment?
   generatedPackets           GeneratedPacket[]
+  postalShipment             PostalShipment?
 }
 
 model CaseDocument {
@@ -211,6 +234,34 @@ model GeneratedPacket {
   case           AdministrativeCase @relation(fields: [caseId], references: [id])
 }
 
+model PostalShipment {
+  id                    String               @id @default(cuid())
+  caseId                String               @unique
+  provider              String
+  environment           String
+  product               String               @default("vertesuivi")
+  status                PostalShipmentStatus @default(DRAFT)
+  providerUid           String?
+  postageCents          Int                  @default(0)
+  providerServiceCents  Int                  @default(0)
+  totalCents            Int                  @default(0)
+  currency              String               @default("eur")
+  previewUrl            String?
+  trackingNumber        String?
+  proofOfDepositUrl     String?
+  lastEventJson         Json?
+  errorMessage          String?
+  quotedAt              DateTime?
+  submittedAt           DateTime?
+  producedAt            DateTime?
+  handedOverAt          DateTime?
+  deliveredAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  case                  AdministrativeCase   @relation(fields: [caseId], references: [id])
+}
+
 model AuditLog {
   id          String   @id @default(cuid())
   actorId     String?
@@ -222,4 +273,3 @@ model AuditLog {
 
   actor       User?    @relation(fields: [actorId], references: [id])
 }
-

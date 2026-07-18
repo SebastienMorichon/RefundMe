@@ -2,12 +2,13 @@ import { Module } from "@nestjs/common";
 import { join } from "node:path";
 import { LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
 import { IdentityModule } from "../identity/identity.module";
+import { AdminInvoicesController } from "./admin-invoices.controller";
 import { DocumentsController } from "./documents.controller";
 import { PrismaDocumentRepository } from "./prisma-document.repository";
 
 @Module({
   imports: [IdentityModule],
-  controllers: [DocumentsController],
+  controllers: [DocumentsController, AdminInvoicesController],
   providers: [
     PrismaDocumentRepository,
     {

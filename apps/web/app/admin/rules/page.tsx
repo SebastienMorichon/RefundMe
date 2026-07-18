@@ -31,6 +31,8 @@ type RuleCandidate = {
   confidence: number;
 };
 
+type RequiredDocument = { kind: string; label: string; required: boolean };
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
 
@@ -39,8 +41,7 @@ export default function AdminRulesPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [message, setMessage] = useState("Verification de votre acces administrateur...");
   const [isBusy, setIsBusy] = useState(false);
-  const [requiresIdentity, setRequiresIdentity] = useState(true);
-  const [requiresBankDetails, setRequiresBankDetails] = useState(true);
+  const [requiredDocuments, setRequiredDocuments] = useState<RequiredDocument[]>([]);
   const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
   const [organizerName, setOrganizerName] = useState("");
   const [ruleName, setRuleName] = useState("");
@@ -50,6 +51,17 @@ export default function AdminRulesPage() {
   const [gameDate, setGameDate] = useState("");
   const [constraints, setConstraints] = useState<Record<string, unknown>>({});
   const [conditionsText, setConditionsText] = useState("");
+  const [participationMechanism, setParticipationMechanism] = useState("");
+  const [participationPeriod, setParticipationPeriod] = useState("");
+  const [reimbursementDeadline, setReimbursementDeadline] = useState("");
+  const [reimbursementRecipient, setReimbursementRecipient] = useState("");
+  const [reimbursementAddress, setReimbursementAddress] = useState("");
+  const [reimbursementEmail, setReimbursementEmail] = useState("");
+  const [reimbursementMethod, setReimbursementMethod] = useState("");
+  const [eligibilityConditionsText, setEligibilityConditionsText] = useState("");
+  const [reimbursementConditionsText, setReimbursementConditionsText] = useState("");
+  const [excludedCostsText, setExcludedCostsText] = useState("");
+  const [letterMentionsText, setLetterMentionsText] = useState("");
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,80 +108,97 @@ export default function AdminRulesPage() {
     }
   }
 
+  async function analyzeAndCreateRule(sourceFile: File | null) {
+    if (!sourceFile || sourceFile.size === 0) {
+      return;
+    }
+
+    if (sourceFile.type !== "application/pdf" || sourceFile.size > maxDocumentSizeBytes) {
+      setMessage("Le reglement doit etre un PDF de 20 Mo maximum.");
+      return;
+    }
+
+    setIsBusy(true);
+
+    try {
+      setMessage("Import du PDF et lecture par Mistral OCR...");
+      const uploadResponse = await fetch(`${apiUrl}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "GAME_RULE_PDF",
+          originalName: sourceFile.name,
+          mimeType: sourceFile.type,
+          contentBase64: await fileToBase64(sourceFile),
+        }),
+      });
+      const uploadPayload = await readJson(uploadResponse);
+      const documentId = readDocumentId(uploadPayload.document);
+      if (!uploadResponse.ok || !documentId) {
+        throw new Error(errorMessage(uploadPayload, "Impossible de deposer le PDF."));
+      }
+
+      setMessage("Analyse des regles et des conditions de remboursement par Mistral...");
+      const extractionResponse = await fetch(`${apiUrl}/admin/rules/extract/${documentId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const extractionPayload = await readJson(extractionResponse);
+      const candidate = readRuleCandidate(extractionPayload.candidate);
+      if (!extractionResponse.ok || !candidate) {
+        throw new Error(errorMessage(extractionPayload, "Impossible d'analyser le reglement."));
+      }
+
+      hydrateCandidate(candidate);
+
+      if (!candidate.organizerName.trim() || !candidate.name.trim()) {
+        setMessage("Mistral a analyse le PDF, mais le nom du jeu ou l'organisateur n'est pas explicitement indique. Completez uniquement le champ manquant pour creer la fiche.");
+        return;
+      }
+
+      setMessage("Creation automatique de la fiche reglement...");
+      const ruleResponse = await fetch(`${apiUrl}/admin/rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(candidateToRulePayload(candidate)),
+      });
+      const rulePayload = await readJson(ruleResponse);
+      const createdRule = readRule(rulePayload.rule);
+      if (!ruleResponse.ok || !createdRule) {
+        throw new Error(errorMessage(rulePayload, "Impossible de creer automatiquement la fiche."));
+      }
+
+      await refreshRules();
+      editRule(createdRule);
+      setMessage(`Fiche creee automatiquement par Mistral (confiance ${Math.round(candidate.confidence * 100)} %). Verifiez-la puis cliquez sur Approuver.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erreur inconnue.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function createRule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    const formData = new FormData(form);
-    const sourceFile = formData.get("source") as File | null;
     setIsBusy(true);
 
     try {
       if (!sourceDocumentId) {
-        if (!sourceFile || sourceFile.size === 0) {
-          throw new Error("Choisissez le PDF du reglement.");
-        }
-        if (sourceFile.type !== "application/pdf" || sourceFile.size > maxDocumentSizeBytes) {
-          throw new Error("Le reglement doit etre un PDF de 20 Mo maximum.");
-        }
-
-        setMessage("Depot et analyse OCR du reglement...");
-        const uploadResponse = await fetch(`${apiUrl}/documents`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            kind: "GAME_RULE_PDF",
-            originalName: sourceFile.name,
-            mimeType: sourceFile.type,
-            contentBase64: await fileToBase64(sourceFile),
-          }),
-        });
-        const uploadPayload = await readJson(uploadResponse);
-        const documentId = readDocumentId(uploadPayload.document);
-        if (!uploadResponse.ok || !documentId) {
-          throw new Error(errorMessage(uploadPayload, "Impossible de deposer le PDF."));
-        }
-
-        const extractionResponse = await fetch(`${apiUrl}/admin/rules/extract/${documentId}`, {
-          method: "POST",
-          credentials: "include",
-        });
-        const extractionPayload = await readJson(extractionResponse);
-        const candidate = readRuleCandidate(extractionPayload.candidate);
-        if (!extractionResponse.ok || !candidate) {
-          throw new Error(errorMessage(extractionPayload, "Impossible d'analyser le reglement."));
-        }
-
-        setSourceDocumentId(candidate.sourceDocumentId);
-        setOrganizerName(candidate.organizerName);
-        setRuleName(candidate.name);
-        setReimbursementEuros((candidate.reimbursementCents / 100).toFixed(2));
-        setValidFrom(candidate.validFrom?.slice(0, 10) ?? "");
-        setValidUntil(candidate.validUntil?.slice(0, 10) ?? "");
-        setGameDate(readString(candidate.constraints.gameDate)?.slice(0, 10) ?? "");
-        setConstraints(candidate.constraints);
-        setConditionsText(formatConditions(candidate.constraints));
-        setRequiresIdentity(candidate.requiredDocuments.some((document) => document.kind === "IDENTITY_DOCUMENT"));
-        setRequiresBankDetails(candidate.requiredDocuments.some((document) => document.kind === "BANK_DETAILS"));
-        setMessage("Fiche pre-remplie par Mistral. Relisez les champs puis creez le reglement.");
-        return;
+        throw new Error("Importez un PDF. Son analyse demarre automatiquement.");
       }
 
       const reimbursement = Number(reimbursementEuros);
       if (!organizerName.trim() || !ruleName.trim() || !Number.isFinite(reimbursement) || reimbursement < 0) {
         throw new Error("Verifiez l'organisateur, le nom et le montant avant de creer le reglement.");
       }
+      if (requiredDocuments.some((document) => !document.label.trim())) {
+        throw new Error("Chaque piece demandee doit avoir un libelle.");
+      }
 
       setMessage("Creation de la regle en relecture...");
-      const requiredDocuments = [
-        { kind: "ORANGE_INVOICE", label: "Facture Orange", required: true },
-        ...(requiresIdentity
-          ? [{ kind: "IDENTITY_DOCUMENT", label: "Copie d'identite filigranee", required: true }]
-          : []),
-        ...(requiresBankDetails
-          ? [{ kind: "BANK_DETAILS", label: "RIB", required: true }]
-          : []),
-      ];
       const ruleResponse = await fetch(
         editingRuleId ? `${apiUrl}/admin/rules/${editingRuleId}` : `${apiUrl}/admin/rules`,
         {
@@ -185,6 +214,17 @@ export default function AdminRulesPage() {
           constraints: {
             ...constraints,
             conditions: parseConditions(conditionsText),
+            participationMechanism,
+            participationPeriod,
+            reimbursementDeadline,
+            reimbursementRecipient,
+            reimbursementAddress,
+            reimbursementEmail,
+            reimbursementMethod,
+            eligibilityConditions: parseLines(eligibilityConditionsText),
+            reimbursementConditions: parseLines(reimbursementConditionsText),
+            excludedCosts: parseLines(excludedCostsText),
+            requiredLetterMentions: parseLines(letterMentionsText),
             ...(gameDate ? { gameDate } : {}),
           },
           ...(validFrom ? { validFrom } : {}),
@@ -199,8 +239,7 @@ export default function AdminRulesPage() {
       }
 
       form.reset();
-      setRequiresIdentity(true);
-      setRequiresBankDetails(true);
+      setRequiredDocuments([]);
       setSourceDocumentId(null);
       setOrganizerName("");
       setRuleName("");
@@ -210,6 +249,7 @@ export default function AdminRulesPage() {
       setGameDate("");
       setConstraints({});
       setConditionsText("");
+      resetConstraintFields();
       setEditingRuleId(null);
       await refreshRules();
       setMessage("Reglement cree. Verifiez-le puis approuvez-le.");
@@ -243,6 +283,49 @@ export default function AdminRulesPage() {
     }
   }
 
+  async function deleteRule(rule: Rule) {
+    const confirmed = window.confirm(`Supprimer le reglement "${rule.name}" ? Cette action est definitive.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsBusy(true);
+    setMessage("Suppression du reglement...");
+
+    try {
+      const response = await fetch(`${apiUrl}/admin/rules/${rule.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = await readJson(response);
+      if (!response.ok) {
+        throw new Error(errorMessage(payload, "Impossible de supprimer le reglement."));
+      }
+
+      if (editingRuleId === rule.id) {
+        setRequiredDocuments([]);
+        setSourceDocumentId(null);
+        setOrganizerName("");
+        setRuleName("");
+        setReimbursementEuros("");
+        setValidFrom("");
+        setValidUntil("");
+        setGameDate("");
+        setConstraints({});
+        setConditionsText("");
+        resetConstraintFields();
+        setEditingRuleId(null);
+      }
+
+      await refreshRules();
+      setMessage("Reglement supprime.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Erreur inconnue.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   function editRule(rule: Rule) {
     setEditingRuleId(rule.id);
     setSourceDocumentId(rule.sourceDocument.id);
@@ -254,10 +337,45 @@ export default function AdminRulesPage() {
     setGameDate(readString(rule.constraints.gameDate)?.slice(0, 10) ?? "");
     setConstraints(rule.constraints);
     setConditionsText(formatConditions(rule.constraints));
-    const requiredDocuments = Array.isArray(rule.requiredDocuments) ? rule.requiredDocuments : [];
-    setRequiresIdentity(requiredDocuments.some((document) => isRequiredDocument(document, "IDENTITY_DOCUMENT")));
-    setRequiresBankDetails(requiredDocuments.some((document) => isRequiredDocument(document, "BANK_DETAILS")));
+    setRequiredDocuments(readRequiredDocuments(rule.requiredDocuments));
+    hydrateConstraintFields(rule.constraints);
     setMessage("Fiche chargee. Toute modification d'un reglement approuve le remettra en relecture.");
+  }
+
+  function hydrateCandidate(candidate: RuleCandidate) {
+    setSourceDocumentId(candidate.sourceDocumentId);
+    setOrganizerName(candidate.organizerName);
+    setRuleName(candidate.name);
+    setReimbursementEuros((candidate.reimbursementCents / 100).toFixed(2));
+    setValidFrom(candidate.validFrom?.slice(0, 10) ?? "");
+    setValidUntil(candidate.validUntil?.slice(0, 10) ?? "");
+    setGameDate(readString(candidate.constraints.gameDate)?.slice(0, 10) ?? "");
+    setConstraints(candidate.constraints);
+    setConditionsText(formatConditions(candidate.constraints));
+    setRequiredDocuments(candidate.requiredDocuments);
+    hydrateConstraintFields(candidate.constraints);
+  }
+
+  function updateRequiredDocument(index: number, patch: Partial<RequiredDocument>) {
+    setRequiredDocuments((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function hydrateConstraintFields(value: Record<string, unknown>) {
+    setParticipationMechanism(readString(value.participationMechanism) ?? "");
+    setParticipationPeriod(readString(value.participationPeriod) ?? "");
+    setReimbursementDeadline(readString(value.reimbursementDeadline) ?? "");
+    setReimbursementRecipient(readString(value.reimbursementRecipient) ?? "");
+    setReimbursementAddress(readString(value.reimbursementAddress) ?? "");
+    setReimbursementEmail(readString(value.reimbursementEmail) ?? "");
+    setReimbursementMethod(readString(value.reimbursementMethod) ?? "");
+    setEligibilityConditionsText(formatLines(value.eligibilityConditions));
+    setReimbursementConditionsText(formatLines(value.reimbursementConditions));
+    setExcludedCostsText(formatLines(value.excludedCosts));
+    setLetterMentionsText(formatLines(value.requiredLetterMentions));
+  }
+
+  function resetConstraintFields() {
+    hydrateConstraintFields({});
   }
 
   const canManageRules = user?.role === "ADMIN";
@@ -280,7 +398,8 @@ export default function AdminRulesPage() {
               <h2 className="text-lg font-extrabold text-[#102544]">Nouveau règlement</h2>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 PDF source
-                <input name="source" type="file" accept="application/pdf" disabled={editingRuleId !== null} className="field font-normal file:mr-3 file:rounded-md file:border-0 file:bg-[#e8efff] file:px-3 file:py-1 file:text-xs file:font-extrabold file:text-[#2457f5]" />
+                <input name="source" type="file" accept="application/pdf" disabled={editingRuleId !== null || isBusy} onChange={(event) => void analyzeAndCreateRule(event.target.files?.[0] ?? null)} className="field font-normal file:mr-3 file:rounded-md file:border-0 file:bg-[#e8efff] file:px-3 file:py-1 file:text-xs file:font-extrabold file:text-[#2457f5]" />
+                <span className="text-xs font-normal text-[#667189]">L'analyse OCR et la creation de la fiche demarrent automatiquement.</span>
               </label>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Organisateur
@@ -299,19 +418,36 @@ export default function AdminRulesPage() {
                 <label className="grid gap-2 text-sm font-semibold">Début de validité<input value={validFrom} onChange={(event) => setValidFrom(event.target.value)} type="date" className="field font-normal" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Fin de validité<input value={validUntil} onChange={(event) => setValidUntil(event.target.value)} type="date" className="field font-normal" /></label>
               </div>
-              <label className="mt-4 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={requiresIdentity} onChange={(event) => setRequiresIdentity(event.target.checked)} />
-                Demander une copie d'identite filigranee
-              </label>
-              <label className="mt-3 flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={requiresBankDetails} onChange={(event) => setRequiresBankDetails(event.target.checked)} />
-                Demander un RIB
-              </label>
+              <fieldset className="mt-5 border-t border-[#edf0f7] pt-5">
+                <div className="flex items-center justify-between gap-3"><legend className="text-sm font-extrabold">Pieces demandees</legend><button type="button" onClick={() => setRequiredDocuments((items) => [...items, { kind: "OTHER", label: "", required: true }])} className="text-xs font-extrabold text-[#2457f5]">Ajouter une piece</button></div>
+                <div className="mt-3 grid gap-2">
+                  {requiredDocuments.length === 0 ? <p className="text-xs text-[#667189]">Aucune piece specifique detectee. Ajoutez les justificatifs indiques par le reglement.</p> : null}
+                  {requiredDocuments.map((document, index) => <div key={`${document.kind}-${index}`} className="grid grid-cols-[120px_1fr_auto_auto] items-center gap-2">
+                    <select value={document.kind} onChange={(event) => updateRequiredDocument(index, { kind: event.target.value })} className="field py-2 text-xs"><option value="ORANGE_INVOICE">Facture</option><option value="IDENTITY_DOCUMENT">Identite</option><option value="BANK_DETAILS">RIB</option><option value="PURCHASE_PROOF">Achat</option><option value="OTHER">Autre</option></select>
+                    <input value={document.label} onChange={(event) => updateRequiredDocument(index, { label: event.target.value })} className="field py-2 text-xs" placeholder="Libelle de la piece" />
+                    <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={document.required} onChange={(event) => updateRequiredDocument(index, { required: event.target.checked })} />Requise</label>
+                    <button type="button" onClick={() => setRequiredDocuments((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="text-xs font-bold text-[#b54733]" aria-label="Supprimer la piece">Suppr.</button>
+                  </div>)}
+                </div>
+              </fieldset>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Conditions du jeu et du remboursement
                 <textarea value={conditionsText} onChange={(event) => setConditionsText(event.target.value)} rows={5} className="field font-normal" placeholder="Éligibilité: ...&#10;Remboursement: ..." />
               </label>
-              <div className="mt-5"><Button disabled={isBusy}>{sourceDocumentId ? (editingRuleId ? "Enregistrer les modifications" : "Creer pour relecture") : "Analyser le PDF"}</Button></div>
+              <fieldset className="mt-5 grid gap-4 border-t border-[#edf0f7] pt-5">
+                <legend className="text-sm font-extrabold">Instructions de remboursement</legend>
+                <label className="grid gap-2 text-sm font-semibold">Mecanique de participation<input value={participationMechanism} onChange={(event) => setParticipationMechanism(event.target.value)} className="field font-normal" placeholder="Ex. SMS+ au 12345" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Periode de participation<input value={participationPeriod} onChange={(event) => setParticipationPeriod(event.target.value)} className="field font-normal" placeholder="Ex. du 1er au 30 juin 2026" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Date limite de remboursement<input value={reimbursementDeadline} onChange={(event) => setReimbursementDeadline(event.target.value)} className="field font-normal" placeholder="Date ISO ou formulation exacte" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Destinataire de la demande<input value={reimbursementRecipient} onChange={(event) => setReimbursementRecipient(event.target.value)} className="field font-normal" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Adresse postale<textarea value={reimbursementAddress} onChange={(event) => setReimbursementAddress(event.target.value)} rows={2} className="field font-normal" /></label>
+                <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-2 text-sm font-semibold">E-mail<input value={reimbursementEmail} onChange={(event) => setReimbursementEmail(event.target.value)} type="email" className="field font-normal" /></label><label className="grid gap-2 text-sm font-semibold">Mode de remboursement<input value={reimbursementMethod} onChange={(event) => setReimbursementMethod(event.target.value)} className="field font-normal" placeholder="Virement, cheque..." /></label></div>
+                <label className="grid gap-2 text-sm font-semibold">Conditions d'eligibilite<textarea value={eligibilityConditionsText} onChange={(event) => setEligibilityConditionsText(event.target.value)} rows={3} className="field font-normal" placeholder="Une condition par ligne" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Conditions de remboursement<textarea value={reimbursementConditionsText} onChange={(event) => setReimbursementConditionsText(event.target.value)} rows={3} className="field font-normal" placeholder="Une condition par ligne" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Frais exclus<textarea value={excludedCostsText} onChange={(event) => setExcludedCostsText(event.target.value)} rows={2} className="field font-normal" placeholder="Une exclusion par ligne" /></label>
+                <label className="grid gap-2 text-sm font-semibold">Mentions a inclure dans le courrier<textarea value={letterMentionsText} onChange={(event) => setLetterMentionsText(event.target.value)} rows={3} className="field font-normal" placeholder="Une mention par ligne" /></label>
+              </fieldset>
+              {sourceDocumentId ? <div className="mt-5"><Button disabled={isBusy}>{editingRuleId ? "Enregistrer les modifications" : "Creer pour relecture"}</Button></div> : null}
             </form>
 
             <section className="surface p-5 sm:p-6">
@@ -331,11 +467,14 @@ export default function AdminRulesPage() {
                     <p className="mt-3 text-sm text-[#52607a]">Source: {rule.sourceDocument.originalName}</p>
                     {readString(rule.constraints.gameDate) ? <p className="mt-2 text-sm text-[#52607a]">Date du jeu: {readString(rule.constraints.gameDate)}</p> : null}
                     {formatConditions(rule.constraints) ? <p className="mt-2 whitespace-pre-line text-sm text-[#52607a]">{formatConditions(rule.constraints)}</p> : null}
+                    {readString(rule.constraints.reimbursementDeadline) ? <p className="mt-2 text-sm text-[#52607a]">Echeance: {readString(rule.constraints.reimbursementDeadline)}</p> : null}
+                    {readString(rule.constraints.reimbursementRecipient) || readString(rule.constraints.reimbursementAddress) ? <p className="mt-2 whitespace-pre-line text-sm text-[#52607a]">Envoi: {[readString(rule.constraints.reimbursementRecipient), readString(rule.constraints.reimbursementAddress)].filter(Boolean).join("\n")}</p> : null}
                     <div className="mt-4 flex flex-wrap gap-3">
                       <Button type="button" variant="secondary" disabled={isBusy} onClick={() => editRule(rule)}>Modifier</Button>
-                    {rule.status === "NEEDS_REVIEW" ? (
-                      <Button type="button" disabled={isBusy} onClick={() => approveRule(rule.id)}>Approuver</Button>
-                    ) : null}
+                      {rule.status === "NEEDS_REVIEW" ? (
+                        <Button type="button" disabled={isBusy} onClick={() => approveRule(rule.id)}>Approuver</Button>
+                      ) : null}
+                      <Button type="button" variant="secondary" disabled={isBusy} onClick={() => deleteRule(rule)} className="border-[#f0b8aa] text-[#b54733] hover:bg-[#fff0ec]">Supprimer</Button>
                     </div>
                   </article>
                 ))}
@@ -434,6 +573,19 @@ function readRuleCandidate(value: unknown): RuleCandidate | null {
   };
 }
 
+function candidateToRulePayload(candidate: RuleCandidate) {
+  return {
+    sourceDocumentId: candidate.sourceDocumentId,
+    organizerName: candidate.organizerName,
+    name: candidate.name,
+    reimbursementCents: candidate.reimbursementCents,
+    requiredDocuments: candidate.requiredDocuments,
+    constraints: candidate.constraints,
+    ...(candidate.validFrom ? { validFrom: candidate.validFrom } : {}),
+    ...(candidate.validUntil ? { validUntil: candidate.validUntil } : {}),
+  };
+}
+
 function readRule(value: unknown): Rule | null {
   if (!value || typeof value !== "object") return null;
   const rule = value as Record<string, unknown>;
@@ -485,10 +637,23 @@ function readString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function isRequiredDocument(value: unknown, kind: string): boolean {
-  if (!value || typeof value !== "object") return false;
-  const document = value as Record<string, unknown>;
-  return document.kind === kind && document.required === true;
+function readRequiredDocuments(value: unknown): RequiredDocument[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((document) => {
+    if (!document || typeof document !== "object") return [];
+    const parsed = document as Record<string, unknown>;
+    return typeof parsed.kind === "string" && typeof parsed.label === "string" && typeof parsed.required === "boolean"
+      ? [{ kind: parsed.kind, label: parsed.label, required: parsed.required }]
+      : [];
+  });
+}
+
+function formatLines(value: unknown): string {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").join("\n") : "";
+}
+
+function parseLines(value: string): string[] {
+  return value.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
 function formatConditions(constraints: Record<string, unknown>): string {

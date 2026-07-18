@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { AdminGuard } from "../identity/admin.guard";
 import { AuthGuard } from "../identity/auth.guard";
 import type { AuthenticatedRequest } from "../identity/auth.types";
@@ -71,6 +71,12 @@ export class RulesController {
   @Patch(":id/approve")
   async approve(@Param("id") ruleId: string, @Req() request: AuthenticatedRequest) {
     return { rule: await this.rules.approve(ruleId, request.user!.id) };
+  }
+
+  @Delete(":id")
+  async delete(@Param("id") ruleId: string, @Req() request: AuthenticatedRequest) {
+    await this.rules.delete(ruleId, request.user!.id);
+    return { deleted: true };
   }
 }
 

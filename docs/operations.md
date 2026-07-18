@@ -18,6 +18,11 @@ Chaque reponse HTTP expose un en-tete `X-Request-Id`. Le conserver dans les jour
 - `DOCUMENT_ENCRYPTION_SECRET`, aleatoire et d'au moins 32 caracteres
 - `DOCUMENT_STORAGE_DIR` seulement pour une instance locale de demonstration
 - `MISTRAL_API_KEY` pour l'OCR des factures et reglements. Cette cle reste exclusivement cote API.
+- `POSTAL_PROVIDER=mock` conserve tout le parcours postal en simulation locale.
+- `POSTAL_PROVIDER=service_postal`, `SERVICE_POSTAL_API_KEY` et `SERVICE_POSTAL_ENV=sandbox` activent le bac a sable Service Postal.
+- `SERVICE_POSTAL_PRODUCTION_ENABLED=true` est obligatoire en plus de `SERVICE_POSTAL_ENV=production` pour autoriser un envoi reel.
+
+Un courrier n'est valide chez le prestataire qu'apres confirmation du paiement Stripe. Le devis postal doit etre cree avant l'ouverture de la session de paiement afin de figer son montant.
 
 Ne jamais reutiliser les valeurs de `.env.example` en production. Les secrets de session et de chiffrement sont volontairement refuses au demarrage quand ils sont insuffisants.
 

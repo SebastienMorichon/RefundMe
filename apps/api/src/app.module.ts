@@ -7,8 +7,9 @@ import { PrismaModule } from "./modules/prisma/prisma.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { PacketsModule } from "./modules/packets/packets.module";
 import { RulesModule } from "./modules/rules/rules.module";
+import { ShippingModule } from "./modules/shipping/shipping.module";
 
 @Module({
-  imports: [PrismaModule, HealthModule, IdentityModule, DocumentsModule, RulesModule, EligibilityModule, PaymentsModule, PacketsModule],
+  imports: [PrismaModule, HealthModule, IdentityModule, DocumentsModule, RulesModule, EligibilityModule, PacketsModule, ShippingModule, PaymentsModule],
 })
 export class AppModule {}
