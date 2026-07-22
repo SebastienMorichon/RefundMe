@@ -10,9 +10,11 @@ import {
   Eye,
   FileCheck2,
   FileText,
+  HandCoins,
   LoaderCircle,
   LockKeyhole,
   ReceiptText,
+  Send,
   ShieldCheck,
   Trash2,
   UploadCloud,
@@ -25,6 +27,7 @@ type RequiredDocument = { kind: string; label: string; required: boolean; suppli
 type CaseDetail = {
   id: string;
   status: string;
+  fulfillmentMode: "SELF_SERVICE" | "MANAGED_POSTAL" | null;
   estimatedRecoverableCents: number;
   serviceFeeCents: number;
   rule: { id: string; version: number; name: string; organizer: string };
@@ -99,12 +102,20 @@ export default function CasePage() {
       if (!response.ok || !parsedCase) throw new Error(errorMessage(payload, "Dossier introuvable."));
       setAdministrativeCase(parsedCase);
       if (parsedCase.payment?.status === "PAID") {
-        setMessage("Paiement confirmé. Votre dossier final est prêt à être téléchargé.");
+        setMessage("Paiement confirmé. Lydoc prend maintenant en charge votre envoi.");
         setMessageTone("success");
+      } else if (parsedCase.fulfillmentMode === "SELF_SERVICE") {
+        setMessage("Votre dossier gratuit est prêt. Téléchargez-le, imprimez-le et envoyez-le à l’organisateur.");
+        setMessageTone("success");
+      } else if (parsedCase.fulfillmentMode === "MANAGED_POSTAL") {
+        setMessage(parsedCase.postalShipment?.status === "QUOTED"
+          ? "Votre devis est prêt. Vérifiez le total avant de payer."
+          : "Vous avez choisi l’envoi pris en charge. Préparons votre devis postal.");
+        setMessageTone("info");
       } else if (parsedCase.status === "READY_TO_PAY") {
         setMessage(parsedCase.validation
-          ? "Votre récapitulatif est validé. Vous pouvez consulter l’aperçu puis payer."
-          : "Votre dossier est complet. Vérifiez et validez le récapitulatif avant le paiement.");
+          ? "Votre dossier est validé. Choisissez maintenant comment vous souhaitez l’envoyer."
+          : "Votre dossier est complet. Vérifiez et validez le récapitulatif.");
         setMessageTone("success");
       } else if (parsedCase.status === "DRAFT") {
         setMessage("Le règlement a été identifié. Lancez la préparation pour voir les pièces utiles.");
@@ -208,8 +219,9 @@ export default function CasePage() {
   }
 
   async function openPacket() {
+    const isFinalPacket = administrativeCase?.fulfillmentMode === "SELF_SERVICE" || administrativeCase?.payment?.status === "PAID";
     setIsBusy(true);
-    setMessage(administrativeCase?.payment?.status === "PAID" ? "Génération du dossier final..." : "Génération de l’aperçu...");
+    setMessage(isFinalPacket ? "Génération du dossier complet..." : "Génération de l’aperçu...");
     setMessageTone("info");
     try {
       const response = await fetch(`${apiUrl}/cases/${caseId}/dossier.pdf`, { credentials: "include" });
@@ -220,15 +232,44 @@ export default function CasePage() {
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      if (administrativeCase?.payment?.status === "PAID") link.download = `dossier-lydoc-${caseId}.pdf`;
+      if (isFinalPacket) link.download = `dossier-lydoc-${caseId}.pdf`;
       link.target = "_blank";
       link.rel = "noopener";
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      setMessage(administrativeCase?.payment?.status === "PAID" ? "Votre dossier final a été généré." : "L’aperçu est prêt.");
+      setMessage(isFinalPacket ? "Votre dossier complet a été téléchargé." : "L’aperçu est prêt.");
       setMessageTone("success");
+      if (administrativeCase?.fulfillmentMode === "SELF_SERVICE") await loadCase();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Impossible de générer le dossier.");
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function chooseFulfillment(mode: "SELF_SERVICE" | "MANAGED_POSTAL") {
+    setIsBusy(true);
+    setMessage(mode === "SELF_SERVICE" ? "Préparation de votre dossier gratuit..." : "Activation de l’envoi pris en charge...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/fulfillment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ mode }),
+      });
+      const payload = await readJson(response);
+      const parsedCase = readCase(payload.case);
+      if (!response.ok || !parsedCase) throw new Error(errorMessage(payload, "Impossible d’enregistrer votre choix."));
+      setAdministrativeCase(parsedCase);
+      setPostalAccepted(false);
+      setMessage(mode === "SELF_SERVICE"
+        ? "Option gratuite choisie. Votre dossier complet est prêt à être téléchargé."
+        : "Option accompagnée choisie. Autorisez le calcul du devis postal pour continuer.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible d’enregistrer votre choix.");
       setMessageTone("error");
     } finally {
       setIsBusy(false);
@@ -354,7 +395,7 @@ export default function CasePage() {
   }
 
   const missingDocuments = administrativeCase?.missingDocuments ?? [];
-  const progress = progressIndex(administrativeCase?.status ?? "DRAFT");
+  const progress = progressIndex(administrativeCase);
   const isPaid = administrativeCase?.payment?.status === "PAID";
 
   return (
@@ -394,12 +435,16 @@ export default function CasePage() {
             <section className="surface mt-6 overflow-hidden">
               <div className="grid divide-y divide-[#dce3ed] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <Metric label="Montant estimé" value={formatCents(administrativeCase.estimatedRecoverableCents)} />
-                <Metric label="Frais de service" value={formatCents(administrativeCase.serviceFeeCents)} />
-                <Metric label="Gain potentiel net" value={formatCents(Math.max(0, administrativeCase.estimatedRecoverableCents - administrativeCase.serviceFeeCents))} positive />
+                <Metric label="Votre formule" value={formatFulfillmentMode(administrativeCase.fulfillmentMode)} />
+                <Metric label="Coût actuel" value={administrativeCase.fulfillmentMode === "MANAGED_POSTAL" ? formatCents(administrativeCase.serviceFeeCents + (administrativeCase.postalShipment?.totalCents ?? 0)) : "0 €"} positive />
               </div>
               <div className="border-t border-[#dce3ed] bg-[#f8fafc] px-5 py-5 sm:px-6">
-                <ol className="grid gap-4 sm:grid-cols-4">
-                  {["Règlement identifié", "Pièces réunies", "Validation", "Envoi"].map((label, index) => (
+                <div className="mb-4 flex items-start gap-3 border-l-4 border-[#2457f5] bg-white px-4 py-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-[#e8efff] text-xs font-extrabold text-[#2457f5]">{Math.min(progress + 1, 5)}</span>
+                  <div><p className="text-xs font-extrabold uppercase text-[#7a8499]">Votre prochaine étape</p><p className="mt-1 text-sm font-extrabold text-[#102544]">{nextStepLabel(administrativeCase)}</p></div>
+                </div>
+                <ol className="grid gap-4 sm:grid-cols-5">
+                  {["Règlement", "Pièces", "Validation", "Votre choix", "Transmission"].map((label, index) => (
                     <li key={label} className="flex items-center gap-3">
                       <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-extrabold ${index < progress ? "bg-[#16875b] text-white" : index === progress ? "bg-[#2457f5] text-white" : "bg-[#e1e7ef] text-[#7a8499]"}`}>
                         {index < progress ? <Check size={14} strokeWidth={3} /> : index + 1}
@@ -411,7 +456,7 @@ export default function CasePage() {
               </div>
             </section>
 
-            <section className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+            <section className="mt-6 grid items-start gap-5 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="surface p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div><h2 className="text-lg font-extrabold text-[#102544]">Pièces du dossier</h2><p className="mt-1 text-sm text-[#667189]">Demandées uniquement par le règlement applicable.</p></div>
@@ -427,7 +472,7 @@ export default function CasePage() {
                       </div>
                     ))}
                   </div>
-                ) : <p className="mt-6 text-sm text-[#667189]">Lancez la préparation pour obtenir la liste exacte.</p>}
+                ) : <p className="mt-6 border-y border-[#e2e8f0] py-4 text-sm text-[#667189]">Aucune pièce supplémentaire n’est demandée par ce règlement.</p>}
               </div>
 
               <div>
@@ -452,10 +497,10 @@ export default function CasePage() {
                   </form>
                 ) : null}
 
-                {administrativeCase.status === "READY_TO_PAY" || isPaid ? (
+                {["READY_TO_PAY", "GENERATED", "PAID", "PRINT_READY", "SENT"].includes(administrativeCase.status) ? (
                   <section className="surface border-t-4 border-t-[#16875b] p-5 sm:p-6">
-                    <span className="grid h-11 w-11 place-items-center rounded-md bg-[#e8f7f0] text-[#16875b]">{isPaid ? <Download size={21} /> : <CheckCircle2 size={22} />}</span>
-                    <h2 className="mt-5 text-lg font-extrabold text-[#102544]">{isPaid ? "Votre dossier final est prêt." : "Votre dossier est complet."}</h2>
+                    <span className="grid h-11 w-11 place-items-center rounded-md bg-[#e8f7f0] text-[#16875b]">{administrativeCase.fulfillmentMode === "SELF_SERVICE" ? <Download size={21} /> : <CheckCircle2 size={22} />}</span>
+                    <h2 className="mt-5 text-lg font-extrabold text-[#102544]">{administrativeCase.validation ? "Votre dossier est validé." : "Votre dossier est complet."}</h2>
                     <p className="mt-3 text-sm leading-6 text-[#667189]">Vérifiez les informations qui seront utilisées dans la demande de remboursement.</p>
                     {!administrativeCase.customerProfile.complete ? (
                       <div className="mt-5 border-l-4 border-[#d47a22] bg-[#fff4e7] p-4 text-sm leading-6 text-[#7d4c13]">
@@ -471,8 +516,6 @@ export default function CasePage() {
                       {administrativeCase.review.reimbursementDeadline ? <ReviewLine label="Délai" value={administrativeCase.review.reimbursementDeadline} /> : null}
                       <ReviewLine label="SMS détectés" value={String(administrativeCase.review.detectedSmsCount)} />
                       <ReviewLine label="Montant demandé" value={formatCents(administrativeCase.estimatedRecoverableCents)} />
-                      <ReviewLine label="Frais de préparation" value={formatCents(administrativeCase.serviceFeeCents)} strong />
-                      {administrativeCase.postalShipment ? <ReviewLine label="Impression et affranchissement" value={formatCents(administrativeCase.postalShipment.totalCents)} strong /> : null}
                     </dl>
                     {administrativeCase.validation ? (
                       <p className="mt-4 flex items-center gap-2 text-xs font-bold text-[#16875b]"><ShieldCheck size={16} /> Informations figées le {formatDateTime(administrativeCase.validation.validatedAt)}</p>
@@ -485,25 +528,59 @@ export default function CasePage() {
                         <button type="button" onClick={confirmCase} disabled={isBusy || !confirmationAccepted || !administrativeCase.customerProfile.complete} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><ShieldCheck size={17} /> Valider mes informations</button>
                       </>
                     )}
-                    {administrativeCase.validation && !administrativeCase.postalShipment ? (
-                      <div className="mt-5 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4">
-                        <p className="text-sm font-extrabold text-[#102544]">Préparer l’envoi postal</p>
-                        <p className="mt-2 text-xs leading-5 text-[#536078]">Le dossier complet sera transmis au prestataire d’impression afin de calculer son prix. Aucun envoi n’est validé avant le paiement.</p>
-                        <label className="mt-3 flex cursor-pointer items-start gap-3 text-xs leading-5 text-[#34415d]"><input type="checkbox" checked={postalAccepted} onChange={(event) => setPostalAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#2457f5]" /><span>J’autorise la préparation de mon dossier pour son impression et son expédition postale.</span></label>
-                        <button type="button" onClick={preparePostalQuote} disabled={isBusy || !postalAccepted} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-4 text-xs font-extrabold text-white disabled:opacity-50"><ReceiptText size={16} /> Calculer les frais postaux</button>
+                    {administrativeCase.validation && !administrativeCase.fulfillmentMode ? (
+                      <div className="mt-6">
+                        <p className="text-base font-extrabold text-[#102544]">Comment souhaitez-vous envoyer votre demande ?</p>
+                        <p className="mt-2 text-sm leading-6 text-[#667189]">Le dossier est identique dans les deux formules. Seule la prise en charge de l’envoi change.</p>
+                        <div className="mt-4 grid gap-3">
+                          <button type="button" onClick={() => chooseFulfillment("SELF_SERVICE")} disabled={isBusy} className="grid min-h-[118px] grid-cols-[42px_1fr_auto] items-start gap-3 rounded-md border-2 border-[#cfd8e6] bg-white p-4 text-left hover:border-[#2457f5] hover:bg-[#f8faff] disabled:opacity-50">
+                            <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e8f7f0] text-[#16875b]"><Download size={19} /></span>
+                            <span><span className="block text-sm font-extrabold text-[#102544]">Je l’envoie moi-même</span><span className="mt-1 block text-xs leading-5 text-[#667189]">Dossier complet à télécharger, puis à imprimer et poster par vos soins.</span><span className="mt-2 block text-xs font-extrabold text-[#16875b]">Aucun paiement</span></span>
+                            <span className="text-lg font-extrabold text-[#102544]">0 €</span>
+                          </button>
+                          <button type="button" onClick={() => chooseFulfillment("MANAGED_POSTAL")} disabled={isBusy} className="grid min-h-[118px] grid-cols-[42px_1fr_auto] items-start gap-3 rounded-md border-2 border-[#2457f5] bg-[#f4f7ff] p-4 text-left hover:bg-[#edf2ff] disabled:opacity-50">
+                            <span className="grid h-10 w-10 place-items-center rounded-md bg-[#2457f5] text-white"><Send size={19} /></span>
+                            <span><span className="block text-sm font-extrabold text-[#102544]">Lydoc s’occupe de l’envoi</span><span className="mt-1 block text-xs leading-5 text-[#536078]">Vérification finale, impression, mise sous pli, lettre verte suivie et suivi.</span><span className="mt-2 block text-xs font-extrabold text-[#2457f5]">Paiement après affichage du devis</span></span>
+                            <span className="rounded-md bg-[#dfe8ff] px-2 py-1 text-[10px] font-extrabold uppercase text-[#2457f5]">Sérénité</span>
+                          </button>
+                        </div>
                       </div>
                     ) : null}
-                    {administrativeCase.postalShipment ? (
-                      <div className="mt-5 bg-[#f8fafc] p-4 text-sm">
-                        <div className="flex items-center justify-between gap-3"><span className="font-bold text-[#536078]">Envoi</span><span className="font-extrabold text-[#102544]">{formatPostalStatus(administrativeCase.postalShipment.status)}</span></div>
-                        <p className="mt-2 text-xs text-[#667189]">{administrativeCase.postalShipment.product === "vertesuivi" ? "Lettre verte suivie" : "Lettre verte"}{administrativeCase.postalShipment.simulation ? " · simulation" : ""}</p>
+                    {administrativeCase.validation && administrativeCase.fulfillmentMode === "MANAGED_POSTAL" && !administrativeCase.postalShipment ? (
+                      <div className="mt-6 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4">
+                        <div className="flex items-start gap-3"><HandCoins size={19} className="mt-0.5 shrink-0 text-[#2457f5]" /><div><p className="text-sm font-extrabold text-[#102544]">Envoi pris en charge par Lydoc</p><p className="mt-1 text-xs leading-5 text-[#536078]">Vous ne payez qu’après avoir vu le prix total. L’envoi démarre automatiquement après le paiement.</p></div></div>
+                        <label className="mt-4 flex cursor-pointer items-start gap-3 text-xs leading-5 text-[#34415d]"><input type="checkbox" checked={postalAccepted} onChange={(event) => setPostalAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-[#2457f5]" /><span>J’autorise la préparation du PDF pour calculer les frais d’impression et d’expédition.</span></label>
+                        <button type="button" onClick={preparePostalQuote} disabled={isBusy || !postalAccepted} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-4 text-sm font-extrabold text-white disabled:opacity-50"><ReceiptText size={16} /> Obtenir mon devis</button>
+                        <button type="button" onClick={() => chooseFulfillment("SELF_SERVICE")} disabled={isBusy} className="mt-4 text-xs font-extrabold text-[#2457f5]">Revenir à l’option gratuite</button>
+                      </div>
+                    ) : null}
+                    {administrativeCase.fulfillmentMode === "MANAGED_POSTAL" && administrativeCase.postalShipment ? (
+                      <div className="mt-6 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4 text-sm">
+                        <div className="flex items-center justify-between gap-3"><span className="font-extrabold text-[#102544]">Votre envoi</span><span className="font-extrabold text-[#2457f5]">{formatPostalStatus(administrativeCase.postalShipment.status)}</span></div>
+                        <p className="mt-2 text-xs text-[#667189]">{administrativeCase.postalShipment.product === "vertesuivi" ? "Lettre verte suivie" : "Lettre verte"}{administrativeCase.postalShipment.simulation ? " · environnement de test" : ""}</p>
+                        <div className="mt-4 divide-y divide-[#cfdaef] border-y border-[#cfdaef]">
+                          <ReviewLine label="Service Lydoc" value={formatCents(administrativeCase.serviceFeeCents)} />
+                          <ReviewLine label="Impression + envoi" value={formatCents(administrativeCase.postalShipment.totalCents)} />
+                          <ReviewLine label="Total à payer" value={formatCents(administrativeCase.serviceFeeCents + administrativeCase.postalShipment.totalCents)} strong />
+                        </div>
                         {administrativeCase.postalShipment.trackingNumber ? <p className="mt-2 text-xs font-bold text-[#34415d]">Suivi : {administrativeCase.postalShipment.trackingNumber}</p> : null}
                         {administrativeCase.postalShipment.errorMessage ? <p className="mt-2 text-xs font-bold text-[#b94a35]">{administrativeCase.postalShipment.errorMessage}</p> : null}
                         {["SUBMITTED", "PRODUCED", "HANDED_OVER", "IN_TRANSIT"].includes(administrativeCase.postalShipment.status) ? <button type="button" onClick={refreshPostalTracking} disabled={isBusy} className="mt-3 text-xs font-extrabold text-[#2457f5]">Actualiser le suivi</button> : null}
+                        {!isPaid && administrativeCase.postalShipment.status === "QUOTED" ? <button type="button" onClick={startCheckout} disabled={isBusy} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><CircleDollarSign size={17} /> Payer {formatCents(administrativeCase.serviceFeeCents + administrativeCase.postalShipment.totalCents)}</button> : null}
+                        {isPaid ? <p className="mt-4 flex items-center gap-2 text-xs font-extrabold text-[#16875b]"><CheckCircle2 size={16} /> Paiement confirmé. Votre envoi est pris en charge.</p> : null}
+                        {isPaid ? <button type="button" onClick={openPacket} disabled={isBusy} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-[#b9c8df] bg-white px-4 text-xs font-extrabold text-[#2457f5] hover:bg-[#f8faff] disabled:opacity-50"><Download size={16} /> Télécharger une copie du dossier</button> : null}
+                        {!isPaid && ["DRAFT", "QUOTED", "FAILED", "CANCELLED"].includes(administrativeCase.postalShipment.status) ? <button type="button" onClick={() => chooseFulfillment("SELF_SERVICE")} disabled={isBusy} className="mt-4 text-xs font-extrabold text-[#2457f5]">Revenir à l’option gratuite</button> : null}
                       </div>
                     ) : null}
-                    <button type="button" onClick={openPacket} disabled={isBusy || !administrativeCase.validation} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#b9c8df] bg-white px-5 text-sm font-extrabold text-[#2457f5] hover:bg-[#f4f7ff] disabled:opacity-50">{isPaid ? <Download size={17} /> : <Eye size={17} />} {isPaid ? "Télécharger le dossier final" : "Voir l’aperçu du dossier"}</button>
-                    {!isPaid ? <button type="button" onClick={startCheckout} disabled={isBusy || !administrativeCase.customerProfile.complete || !administrativeCase.validation || administrativeCase.postalShipment?.status !== "QUOTED"} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 text-sm font-extrabold text-white hover:bg-[#1947d8] disabled:opacity-50"><CircleDollarSign size={17} /> Payer {formatCents(administrativeCase.serviceFeeCents + (administrativeCase.postalShipment?.totalCents ?? 0))}</button> : null}
+                    {administrativeCase.fulfillmentMode === "SELF_SERVICE" ? (
+                      <div className="mt-6 border-l-4 border-[#16875b] bg-[#effaf5] p-4">
+                        <div className="flex items-start gap-3"><Download size={19} className="mt-0.5 shrink-0 text-[#16875b]" /><div><p className="text-sm font-extrabold text-[#102544]">Votre dossier gratuit est prêt</p><p className="mt-1 text-xs leading-5 text-[#536078]">Le PDF contient la lettre de demande et toutes les pièces exigées par le règlement.</p></div></div>
+                        <button type="button" onClick={openPacket} disabled={isBusy} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#16875b] px-5 text-sm font-extrabold text-white hover:bg-[#116e49] disabled:opacity-50"><Download size={17} /> Télécharger mon dossier complet</button>
+                        <ol className="mt-4 grid gap-2 text-xs text-[#536078]"><GuideLine number="1" text="Téléchargez et vérifiez le PDF." /><GuideLine number="2" text="Imprimez-le et signez la lettre si nécessaire." /><GuideLine number="3" text={`Envoyez-le à ${administrativeCase.review.reimbursementRecipient}.`} /></ol>
+                        <button type="button" onClick={() => chooseFulfillment("MANAGED_POSTAL")} disabled={isBusy} className="mt-4 text-xs font-extrabold text-[#2457f5]">Je préfère finalement confier l’envoi à Lydoc</button>
+                      </div>
+                    ) : null}
+                    {administrativeCase.validation && !administrativeCase.fulfillmentMode ? <button type="button" onClick={openPacket} disabled={isBusy} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 text-xs font-extrabold text-[#667189] hover:text-[#2457f5]"><Eye size={16} /> Consulter un aperçu avant de choisir</button> : null}
                   </section>
                 ) : null}
               </div>
@@ -525,8 +602,12 @@ function ReviewLine({ label, value, strong = false }: { label: string; value: st
   return <div className="grid gap-1 py-3 sm:grid-cols-[145px_1fr]"><dt className="font-bold text-[#7a8499]">{label}</dt><dd className={strong ? "font-extrabold text-[#102544]" : "font-semibold text-[#34415d]"}>{value || "Non renseigné"}</dd></div>;
 }
 
+function GuideLine({ number, text }: { number: string; text: string }) {
+  return <li className="flex items-start gap-3"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-white font-extrabold text-[#16875b]">{number}</span><span className="pt-0.5 leading-5">{text}</span></li>;
+}
+
 function StatusBadge({ status, paid }: { status: string; paid: boolean }) {
-  const success = paid || ["READY_TO_PAY", "SENT", "REFUNDED"].includes(status);
+  const success = paid || ["READY_TO_PAY", "GENERATED", "PRINT_READY", "SENT", "REFUNDED"].includes(status);
   return <span className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs font-extrabold ${success ? "bg-[#e8f7f0] text-[#16875b]" : "bg-[#fff4e7] text-[#a95d12]"}`}><span className={`status-dot ${success ? "bg-[#16875b]" : "bg-[#d47a22]"}`} />{paid ? "Payé" : formatStatus(status)}</span>;
 }
 
@@ -578,6 +659,7 @@ function readCase(value: unknown): CaseDetail | null {
   return {
     id: item.id,
     status: item.status,
+    fulfillmentMode: item.fulfillmentMode === "SELF_SERVICE" || item.fulfillmentMode === "MANAGED_POSTAL" ? item.fulfillmentMode : null,
     estimatedRecoverableCents: item.estimatedRecoverableCents,
     serviceFeeCents: item.serviceFeeCents,
     rule: { id: rule.id, version: rule.version, name: rule.name, organizer: rule.organizer },
@@ -636,7 +718,7 @@ function formatDateTime(value: string): string {
 }
 
 function formatStatus(status: string): string {
-  const labels: Record<string, string> = { DRAFT: "À préparer", WAITING_FOR_USER_DOCUMENTS: "Pièces attendues", READY_TO_PAY: "Dossier complet", PAID: "Payé", SENT: "Envoyé", REFUNDED: "Remboursé", REJECTED: "Refusé" };
+  const labels: Record<string, string> = { DRAFT: "À préparer", WAITING_FOR_USER_DOCUMENTS: "Pièces attendues", READY_TO_PAY: "Dossier complet", GENERATED: "Prêt à envoyer", PAID: "Payé", PRINT_READY: "En préparation", SENT: "Envoyé", REFUNDED: "Remboursé", REJECTED: "Refusé" };
   return labels[status] ?? status;
 }
 
@@ -655,9 +737,31 @@ function formatPostalStatus(status: string): string {
   return labels[status] ?? status;
 }
 
-function progressIndex(status: string): number {
-  if (["REFUNDED", "SENT", "PAID", "GENERATED", "PRINT_READY"].includes(status)) return 3;
-  if (status === "READY_TO_PAY") return 2;
-  if (status === "WAITING_FOR_USER_DOCUMENTS") return 1;
+function progressIndex(administrativeCase: CaseDetail | null): number {
+  if (!administrativeCase) return 0;
+  if (["PAID", "PRINT_READY", "SENT", "REFUNDED", "GENERATED"].includes(administrativeCase.status)) return 4;
+  if (administrativeCase.fulfillmentMode) return 4;
+  if (administrativeCase.validation) return 3;
+  if (administrativeCase.status === "READY_TO_PAY") return 2;
+  if (administrativeCase.status === "WAITING_FOR_USER_DOCUMENTS") return 1;
   return 0;
+}
+
+function nextStepLabel(administrativeCase: CaseDetail): string {
+  if (administrativeCase.status === "DRAFT") return "Lancer la préparation du dossier";
+  if (administrativeCase.missingDocuments.length > 0) return `Ajouter ${administrativeCase.missingDocuments[0]?.label ?? "la pièce demandée"}`;
+  if (!administrativeCase.validation) return "Vérifier et valider vos informations";
+  if (!administrativeCase.fulfillmentMode) return "Choisir entre l’envoi gratuit et l’envoi pris en charge";
+  if (administrativeCase.fulfillmentMode === "SELF_SERVICE") return "Télécharger, imprimer et envoyer votre dossier";
+  if (!administrativeCase.postalShipment) return "Obtenir votre devis d’envoi";
+  if (administrativeCase.postalShipment.status === "QUOTED" && !administrativeCase.payment) return "Vérifier le devis et procéder au paiement";
+  if (["SUBMITTED", "PRODUCED", "HANDED_OVER", "IN_TRANSIT"].includes(administrativeCase.postalShipment.status)) return "Suivre l’acheminement de votre courrier";
+  if (administrativeCase.postalShipment.status === "DELIVERED") return "Attendre le traitement par l’organisateur";
+  return "Consulter l’état de votre dossier";
+}
+
+function formatFulfillmentMode(mode: CaseDetail["fulfillmentMode"]): string {
+  if (mode === "SELF_SERVICE") return "Gratuit";
+  if (mode === "MANAGED_POSTAL") return "Envoi Lydoc";
+  return "À choisir";
 }

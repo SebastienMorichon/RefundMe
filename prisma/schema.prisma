@@ -62,6 +62,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum CaseFulfillmentMode {
+  SELF_SERVICE
+  MANAGED_POSTAL
+}
+
 enum PostalShipmentStatus {
   DRAFT
   QUOTED
@@ -184,6 +189,7 @@ model AdministrativeCase {
   complianceSnapshotJson      Json
   validatedAt                 DateTime?
   validationSnapshotJson      Json?
+  fulfillmentMode             CaseFulfillmentMode?
   createdAt                  DateTime   @default(now())
   updatedAt                  DateTime   @updatedAt
 

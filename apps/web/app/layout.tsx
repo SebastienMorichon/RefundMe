@@ -8,12 +8,12 @@ export const metadata: Metadata = {
     template: "%s | Lydoc",
   },
   description:
-    "Lydoc analyse vos factures, identifie les remboursements prévus par les règlements et prépare votre dossier.",
+    "Lydoc analyse vos factures, prépare gratuitement votre dossier de remboursement et peut prendre en charge son envoi postal.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" data-scroll-behavior="smooth">
       <body className="antialiased">{children}</body>
     </html>
   );

@@ -9,6 +9,7 @@ import {
   addRuleSnapshotToCompliance,
   createCaseRuleSnapshot,
   createCustomerSnapshot,
+  readCaseValidationSnapshot,
   readRuleSnapshotFromCompliance,
   type CaseRuleSnapshot,
   type CaseValidationSnapshot,
@@ -286,12 +287,57 @@ export class EligibilityService {
 
     await this.prisma.$transaction(async (transaction) => {
       await transaction.generatedPacket.deleteMany({ where: { caseId: administrativeCase.id } });
+      await transaction.postalShipment.deleteMany({ where: { caseId: administrativeCase.id } });
       await transaction.payment.deleteMany({ where: { caseId: administrativeCase.id } });
       await transaction.caseDocument.deleteMany({ where: { caseId: administrativeCase.id } });
       await transaction.administrativeCase.delete({ where: { id: administrativeCase.id } });
     });
 
     return true;
+  }
+
+  async chooseFulfillment(caseId: string, mode: string, ownerId: string) {
+    if (!['SELF_SERVICE', 'MANAGED_POSTAL'].includes(mode)) {
+      throw new BadRequestException("Choisissez le téléchargement gratuit ou l'envoi pris en charge.");
+    }
+
+    const administrativeCase = await this.findOwnedCase(caseId, ownerId);
+    if (!administrativeCase.validatedAt || !readCaseValidationSnapshot(administrativeCase.validationSnapshotJson)) {
+      throw new BadRequestException("Validez le récapitulatif avant de choisir votre mode d'envoi.");
+    }
+    if (administrativeCase.payment?.status === "PAID") {
+      throw new BadRequestException("Le mode d'envoi ne peut plus être modifié après le paiement.");
+    }
+    if (administrativeCase.postalShipment && !["DRAFT", "QUOTED", "FAILED", "CANCELLED"].includes(administrativeCase.postalShipment.status)) {
+      throw new BadRequestException("Le mode d'envoi ne peut plus être modifié après sa prise en charge.");
+    }
+
+    const updatedCase = await this.prisma.$transaction(async (transaction) => {
+      if (mode === "SELF_SERVICE") {
+        await transaction.payment.deleteMany({ where: { caseId } });
+        await transaction.postalShipment.deleteMany({ where: { caseId } });
+      }
+      const updated = await transaction.administrativeCase.update({
+        where: { id: caseId },
+        data: {
+          fulfillmentMode: mode as "SELF_SERVICE" | "MANAGED_POSTAL",
+          ...(mode === "MANAGED_POSTAL" && administrativeCase.status === "GENERATED" ? { status: "READY_TO_PAY" as const } : {}),
+        },
+        include: this.caseDetailIncludes,
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorId: ownerId,
+          action: "CASE_FULFILLMENT_SELECTED",
+          entityType: "AdministrativeCase",
+          entityId: caseId,
+          metadata: { mode },
+        },
+      });
+      return updated;
+    });
+
+    return this.presentCaseDetail(updatedCase);
   }
 
   async startCase(caseId: string, ownerId: string) {
@@ -472,6 +518,7 @@ export class EligibilityService {
   private presentCase(administrativeCase: {
     id: string;
     status: string;
+    fulfillmentMode: string | null;
     estimatedRecoverableCents: number;
     serviceFeeCents: number;
     confidence: Prisma.Decimal | null;
@@ -481,6 +528,7 @@ export class EligibilityService {
     return {
       id: administrativeCase.id,
       status: administrativeCase.status,
+      fulfillmentMode: administrativeCase.fulfillmentMode,
       estimatedRecoverableCents: administrativeCase.estimatedRecoverableCents,
       serviceFeeCents: administrativeCase.serviceFeeCents,
       confidence: administrativeCase.confidence ? Number(administrativeCase.confidence) : null,

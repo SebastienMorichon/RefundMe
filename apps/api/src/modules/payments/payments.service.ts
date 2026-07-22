@@ -48,6 +48,9 @@ export class PaymentsService {
     if (administrativeCase.status !== "READY_TO_PAY") {
       throw new BadRequestException("Le dossier doit etre complet avant le paiement.");
     }
+    if (administrativeCase.fulfillmentMode !== "MANAGED_POSTAL") {
+      throw new BadRequestException("Le paiement concerne uniquement l'envoi pris en charge par Lydoc.");
+    }
     if (!administrativeCase.validatedAt || !readCaseValidationSnapshot(administrativeCase.validationSnapshotJson)) {
       throw new BadRequestException("Validez le recapitulatif du dossier avant le paiement.");
     }
@@ -81,8 +84,8 @@ export class PaymentsService {
             currency: "eur",
             unit_amount: administrativeCase.serviceFeeCents,
             product_data: {
-              name: "Preparation du dossier de remboursement Lydoc",
-              description: `Dossier ${administrativeCase.id}`,
+              name: "Prise en charge Lydoc",
+              description: `Vérification finale et préparation de l'envoi du dossier ${administrativeCase.id}`,
             },
           },
         },

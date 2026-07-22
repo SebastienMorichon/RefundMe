@@ -10,7 +10,7 @@ const groups = [
     questions: [
       ["À quoi sert Lydoc ?", "Lydoc analyse vos factures, recherche les conditions de remboursement applicables et vous aide à constituer le dossier demandé par l’organisateur."],
       ["Quels documents puis-je analyser ?", "La première version se concentre sur les factures opérateurs liées à des jeux et émissions. D’autres catégories seront ajoutées progressivement."],
-      ["Puis-je tester le service sans payer ?", "Oui. La création du compte et l’analyse initiale de la facture sont gratuites. Le tarif est affiché avant toute préparation payante."],
+      ["Puis-je utiliser le service sans payer ?", "Oui. La création du compte, l’analyse, la constitution et le téléchargement du dossier complet sont gratuits. Vous l’imprimez et l’envoyez ensuite vous-même."],
     ],
   },
   {
@@ -25,7 +25,7 @@ const groups = [
     title: "Remboursement et paiement",
     questions: [
       ["Le montant affiché est-il garanti ?", "Non. Il s’agit d’une estimation fondée sur la facture et le règlement identifié. La décision finale de remboursement appartient toujours à l’organisateur."],
-      ["Quand dois-je payer ?", "Le prix du service est présenté avant la validation du dossier. Il n’y a pas d’abonnement ni de prélèvement automatique récurrent."],
+      ["Quand dois-je payer ?", "Uniquement si vous choisissez que Lydoc imprime et envoie le dossier à votre place. Un devis détaillé est présenté avant le paiement. Il n’y a ni abonnement ni prélèvement récurrent."],
       ["Combien de temps prend un remboursement ?", "Le délai dépend de l’organisateur et des conditions du règlement. Votre espace Lydoc vous permet de suivre l’état du dossier et les actions restantes."],
     ],
   },

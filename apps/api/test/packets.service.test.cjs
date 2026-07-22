@@ -5,6 +5,7 @@ const {
   canGeneratePacket,
   createCasePacket,
   findMissingRequiredDocumentLabels,
+  shouldGenerateFinalPacket,
 } = require("../dist/modules/packets/packets.service.js");
 
 test("only complete or paid cases can generate a packet", () => {
@@ -12,6 +13,13 @@ test("only complete or paid cases can generate a packet", () => {
   assert.equal(canGeneratePacket("WAITING_FOR_USER_DOCUMENTS"), false);
   assert.equal(canGeneratePacket("READY_TO_PAY"), true);
   assert.equal(canGeneratePacket("PAID"), true);
+});
+
+test("generates the complete packet for the free self-service option", () => {
+  assert.equal(shouldGenerateFinalPacket(false, "SELF_SERVICE", undefined), true);
+  assert.equal(shouldGenerateFinalPacket(false, "MANAGED_POSTAL", undefined), false);
+  assert.equal(shouldGenerateFinalPacket(false, "MANAGED_POSTAL", "PAID"), true);
+  assert.equal(shouldGenerateFinalPacket(true, null, undefined), true);
 });
 
 test("detects required documents missing from a case", () => {

@@ -19,7 +19,10 @@ export class ShippingService {
       include: { postalShipment: true, payment: true },
     });
     if (!administrativeCase) throw new NotFoundException("Dossier introuvable.");
-    if (!["READY_TO_PAY", "PAID", "PRINT_READY", "SENT"].includes(administrativeCase.status)) {
+    if (administrativeCase.fulfillmentMode !== "MANAGED_POSTAL") {
+      throw new BadRequestException("Choisissez l'envoi pris en charge avant de demander un devis postal.");
+    }
+    if (!["READY_TO_PAY", "GENERATED", "PAID", "PRINT_READY", "SENT"].includes(administrativeCase.status)) {
       throw new BadRequestException("Le dossier doit etre complet avant de preparer l'envoi postal.");
     }
     const validation = readCaseValidationSnapshot(administrativeCase.validationSnapshotJson);
@@ -101,6 +104,7 @@ export class ShippingService {
     });
     const shipment = administrativeCase?.postalShipment;
     if (!administrativeCase || !shipment || !administrativeCase.payment || administrativeCase.payment.status !== "PAID") return;
+    if (administrativeCase.fulfillmentMode !== "MANAGED_POSTAL") return;
     if (shipment.status !== PostalShipmentStatus.QUOTED || !shipment.providerUid) return;
     const expectedAmount = administrativeCase.serviceFeeCents + shipment.totalCents;
     if (administrativeCase.payment.amountCents < expectedAmount) {

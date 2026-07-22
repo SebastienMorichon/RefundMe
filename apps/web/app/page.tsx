@@ -33,12 +33,12 @@ const steps = [
     number: "03",
     icon: Send,
     title: "Votre dossier est préparé",
-    description: "Vous complétez uniquement les pièces réellement exigées, puis suivez chaque étape depuis votre espace.",
+    description: "Vous complétez uniquement les pièces exigées, puis choisissez de l’envoyer vous-même gratuitement ou de nous confier l’envoi.",
   },
 ];
 
 const faqs = [
-  ["Combien coûte Lydoc ?", "L’analyse initiale de votre facture est gratuite. Le tarif du service est affiché avant toute validation du dossier, sans abonnement."],
+  ["Combien coûte Lydoc ?", "L’analyse, la constitution et le téléchargement du dossier sont gratuits. Vous payez uniquement si vous choisissez de confier l’impression et l’envoi postal à Lydoc."],
   ["Dois-je envoyer mon RIB à l’inscription ?", "Non. Le RIB et la pièce d’identité ne sont jamais demandés pour créer votre compte. Ils ne le sont que si le règlement applicable les exige pour constituer votre dossier."],
   ["Lydoc garantit-il le remboursement ?", "Non. Lydoc analyse les conditions, vous aide à constituer un dossier conforme et vous permet d’en suivre l’avancement. La décision finale appartient à l’organisateur."],
 ];
@@ -66,7 +66,7 @@ export default function HomePage() {
                 Détectez les remboursements cachés dans vos factures.
               </h1>
               <p className="mt-6 max-w-[560px] text-base leading-7 text-[#4f5d78] sm:text-lg sm:leading-8">
-                Lydoc lit votre facture, vérifie les règlements applicables et vous indique combien vous pourriez récupérer. Vous décidez ensuite si vous souhaitez préparer le dossier.
+                Lydoc lit votre facture, vérifie les règlements applicables et constitue votre dossier. Téléchargez-le gratuitement ou confiez-nous son impression et son envoi.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a href="/inscription" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#2457f5] px-5 py-3 text-sm font-extrabold text-white shadow-md hover:bg-[#1947d8]">
@@ -204,15 +204,15 @@ export default function HomePage() {
             <div className="max-w-xl">
               <p className="eyebrow">Un tarif lisible</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#102544] sm:text-4xl">Vous analysez d’abord. Vous choisissez ensuite.</h2>
-              <p className="mt-5 text-base leading-7 text-[#5d6881]">La création du compte et l’analyse de la facture ne vous engagent à rien. Le prix est confirmé avant la préparation et l’envoi du dossier.</p>
+              <p className="mt-5 text-base leading-7 text-[#5d6881]">La création du compte, l’analyse et le dossier complet sont gratuits. Une formule accompagnée reste disponible si vous préférez nous confier l’envoi postal.</p>
             </div>
             <div className="border-l-4 border-[#2457f5] bg-[#f3f6fa] px-6 py-7 sm:px-8">
               <div className="flex flex-wrap items-end justify-between gap-4">
-                <div><p className="text-sm font-bold text-[#5d6881]">Analyse de la facture</p><p className="mt-1 text-4xl font-extrabold text-[#102544]">Gratuite</p></div>
+                <div><p className="text-sm font-bold text-[#5d6881]">Dossier complet à télécharger</p><p className="mt-1 text-4xl font-extrabold text-[#102544]">0 €</p></div>
                 <span className="rounded-md bg-[#e8f7f0] px-3 py-2 text-xs font-extrabold text-[#16875b]">Sans abonnement</span>
               </div>
               <div className="mt-6 border-t border-[#d5dde8] pt-6">
-                <p className="text-sm leading-6 text-[#5d6881]">Les frais de préparation du dossier sont affichés clairement avant votre validation. Aucun prélèvement automatique.</p>
+                <p className="text-sm leading-6 text-[#5d6881]">Vous pouvez l’imprimer et l’envoyer vous-même. Si vous choisissez l’envoi pris en charge, le prix de l’impression, de l’affranchissement et du service est affiché avant paiement.</p>
                 <a href="/inscription" className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[#2457f5]">Tester gratuitement <ArrowRight size={17} /></a>
               </div>
             </div>

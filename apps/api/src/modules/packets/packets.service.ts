@@ -109,7 +109,8 @@ export class PacketsService {
       );
     }
 
-    const preview = !forceFinal && administrativeCase.payment?.status !== "PAID";
+    const selfService = administrativeCase.fulfillmentMode === "SELF_SERVICE";
+    const preview = !shouldGenerateFinalPacket(forceFinal, administrativeCase.fulfillmentMode, administrativeCase.payment?.status);
     const ruleConstraints = readRuleConstraints(validation.rule.constraints);
     const smsCharges = readSmsCharges(administrativeCase.complianceSnapshotJson);
     const attachments = preview
@@ -130,7 +131,7 @@ export class PacketsService {
       organizer: validation.rule.organizerName,
       gameName: validation.rule.name,
       estimatedRecoverableCents: validation.estimatedRecoverableCents,
-      serviceFeeCents: validation.serviceFeeCents,
+      serviceFeeCents: selfService ? 0 : validation.serviceFeeCents,
       documents: validatedDocuments.map(({ document }) => document.originalName),
       requiredDocuments,
       ruleConstraints,
@@ -139,7 +140,15 @@ export class PacketsService {
       createdAt: administrativeCase.createdAt,
       paidAt: administrativeCase.payment?.paidAt ?? null,
       preview,
+      fulfillmentMode: selfService ? "SELF_SERVICE" : "MANAGED_POSTAL",
     });
+
+    if (selfService && administrativeCase.status === "READY_TO_PAY") {
+      await this.prisma.administrativeCase.update({
+        where: { id: administrativeCase.id },
+        data: { status: "GENERATED" },
+      });
+    }
 
     return { bytes: Buffer.from(bytes), preview };
   }
@@ -186,6 +195,14 @@ export function canGeneratePacket(status: string): boolean {
   return ["READY_TO_PAY", "PAID", "GENERATED", "PRINT_READY", "SENT", "REFUNDED"].includes(status);
 }
 
+export function shouldGenerateFinalPacket(
+  forceFinal: boolean,
+  fulfillmentMode: string | null,
+  paymentStatus: string | undefined,
+): boolean {
+  return forceFinal || fulfillmentMode === "SELF_SERVICE" || paymentStatus === "PAID";
+}
+
 export function findMissingRequiredDocumentLabels(requiredDocuments: unknown, attachedKinds: Iterable<string>): string[] {
   const suppliedKinds = new Set(attachedKinds);
   return readRequiredDocuments(requiredDocuments)
@@ -212,6 +229,7 @@ export async function createCasePacket(input: {
   createdAt: Date;
   paidAt: Date | null;
   preview: boolean;
+  fulfillmentMode?: "SELF_SERVICE" | "MANAGED_POSTAL";
 }): Promise<Uint8Array> {
   const document = await PDFDocument.create();
   document.registerFontkit(fontkit);
@@ -242,7 +260,7 @@ export async function createCasePacket(input: {
     { label: "Reference du dossier", value: input.caseId },
     { label: "Demandeur", value: input.customerName ? `${input.customerName} - ${input.customerEmail}` : input.customerEmail },
     { label: "Montant demande", value: formatCents(input.estimatedRecoverableCents) },
-    { label: "Frais de preparation Lydoc", value: formatCents(input.serviceFeeCents) },
+    { label: input.fulfillmentMode === "SELF_SERVICE" ? "Coût du dossier" : "Prise en charge Lydoc", value: formatCents(input.serviceFeeCents) },
     { label: "Gain potentiel net", value: formatCents(Math.max(0, input.estimatedRecoverableCents - input.serviceFeeCents)) },
   ];
   let y = 656;
@@ -278,8 +296,10 @@ export async function createCasePacket(input: {
   }
 
   const footer = input.preview
-    ? "APERCU - NON ENVOYE - Le paiement est requis pour obtenir les pieces annexees."
-    : `Dossier paye le ${formatDate(input.paidAt ?? input.createdAt)} - Pret pour transmission.`;
+    ? "APERCU - Choisissez votre mode d'envoi pour obtenir le dossier complet."
+    : input.fulfillmentMode === "SELF_SERVICE"
+      ? "DOSSIER GRATUIT - A imprimer et envoyer par vos soins."
+      : `Dossier pris en charge le ${formatDate(input.paidAt ?? input.createdAt)} - Pret pour transmission.`;
   page.drawRectangle({ x: 0, y: 0, width: 595.28, height: 52, color: rgb(0.965, 0.976, 0.988) });
   page.drawText(footer, { x: 44, y: 30, size: 8, font: bold, color: input.preview ? blue : green });
   page.drawText("L'organisateur reste seul decisionnaire de l'acceptation du remboursement.", {

@@ -38,6 +38,17 @@ export class EligibilityController {
     return { case: await this.eligibility.confirmCase(caseId, this.requireUserId(request)) };
   }
 
+  @Post("cases/:id/fulfillment")
+  async chooseFulfillment(
+    @Param("id") caseId: string,
+    @Body() body: { mode?: string },
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return {
+      case: await this.eligibility.chooseFulfillment(caseId, body.mode ?? "", this.requireUserId(request)),
+    };
+  }
+
   @Post("cases/:id/documents")
   async attachDocument(
     @Param("id") caseId: string,
