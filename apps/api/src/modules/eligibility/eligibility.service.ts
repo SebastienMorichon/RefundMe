@@ -296,6 +296,39 @@ export class EligibilityService {
     return true;
   }
 
+  async markRefunded(caseId: string, ownerId: string) {
+    const administrativeCase = await this.findOwnedCase(caseId, ownerId);
+    if (administrativeCase.status === "REFUNDED") {
+      return this.presentCaseDetail(administrativeCase);
+    }
+    if (!administrativeCase.validatedAt || !administrativeCase.fulfillmentMode) {
+      throw new BadRequestException("Finalisez le dossier avant de confirmer son remboursement.");
+    }
+    if (["REJECTED", "CANCELLED"].includes(administrativeCase.status)) {
+      throw new BadRequestException("Ce dossier cloture ne peut pas etre marque comme rembourse.");
+    }
+
+    const updatedCase = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.administrativeCase.update({
+        where: { id: administrativeCase.id },
+        data: { status: "REFUNDED" },
+        include: this.caseDetailIncludes,
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorId: ownerId,
+          action: "CASE_REFUND_CONFIRMED",
+          entityType: "AdministrativeCase",
+          entityId: administrativeCase.id,
+          metadata: { estimatedRecoverableCents: administrativeCase.estimatedRecoverableCents },
+        },
+      });
+      return updated;
+    });
+
+    return this.presentCaseDetail(updatedCase);
+  }
+
   async chooseFulfillment(caseId: string, mode: string, ownerId: string) {
     if (!['SELF_SERVICE', 'MANAGED_POSTAL'].includes(mode)) {
       throw new BadRequestException("Choisissez le téléchargement gratuit ou l'envoi pris en charge.");
@@ -346,9 +379,12 @@ export class EligibilityService {
       return this.presentCaseDetail(administrativeCase);
     }
 
+    const nextStatus = this.missingDocuments(administrativeCase).length > 0
+      ? "WAITING_FOR_USER_DOCUMENTS"
+      : "READY_TO_PAY";
     const updatedCase = await this.prisma.administrativeCase.update({
       where: { id: administrativeCase.id },
-      data: { status: "WAITING_FOR_USER_DOCUMENTS" },
+      data: { status: nextStatus },
       include: this.caseDetailIncludes,
     });
     return this.presentCaseDetail(updatedCase);

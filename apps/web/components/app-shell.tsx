@@ -2,15 +2,14 @@
 
 import {
   Bell,
+  ChevronDown,
   CircleHelp,
-  FileCheck2,
   FileText,
   FolderKanban,
-  Gauge,
+  Home,
   LogOut,
   Menu,
   Plus,
-  ReceiptText,
   Settings,
   ShieldCheck,
   X,
@@ -19,109 +18,225 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { Brand } from "./brand";
 
+export type AppSection =
+  "dashboard" | "documents" | "cases" | "profile" | "admin" | "admin-invoices";
+
 type AppShellProps = {
   children: ReactNode;
-  active?: "dashboard" | "documents" | "cases" | "profile" | "admin" | "admin-invoices";
+  active?: AppSection;
   email?: string | undefined;
   isAdmin?: boolean;
 };
 
 const navigation = [
-  { id: "dashboard", href: "/dashboard", label: "Vue d’ensemble", icon: Gauge },
-  { id: "documents", href: "/dashboard#documents", label: "Mes documents", icon: FileText },
-  { id: "cases", href: "/dashboard#dossiers", label: "Mes dossiers", icon: FolderKanban },
-  { id: "refunds", href: "/dashboard#remboursements", label: "Remboursements", icon: ReceiptText },
+  {
+    id: "dashboard" as const,
+    href: "/dashboard",
+    label: "Accueil",
+    icon: Home,
+  },
+  {
+    id: "cases" as const,
+    href: "/cases",
+    label: "Dossiers",
+    icon: FolderKanban,
+  },
+  {
+    id: "documents" as const,
+    href: "/documents",
+    label: "Documents",
+    icon: FileText,
+  },
 ];
 
-export function AppShell({ children, active = "dashboard", email, isAdmin = false }: AppShellProps) {
-  const [open, setOpen] = useState(false);
-  const initials = email?.slice(0, 2).toUpperCase() ?? "LY";
+export function AppShell({
+  children,
+  active = "dashboard",
+  email,
+  isAdmin = false,
+}: AppShellProps) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const initials = accountInitials(email);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-[#111b35] lg:grid lg:grid-cols-[252px_1fr]">
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-[252px] flex-col bg-[#102544] lg:flex">
-        <div className="flex h-[76px] items-center border-b border-white/10 px-6">
-          <a href="/dashboard" aria-label="Tableau de bord Lydoc"><Brand inverse /></a>
-        </div>
-        <div className="px-4 py-5">
-          <a href="/dashboard#deposer" className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-extrabold text-[#102544] hover:bg-[#eef3f9]">
-            <Plus size={17} /> Déposer une facture
+    <div className="min-h-screen bg-[#fbfcfe] text-[#101a34]">
+      <header className="sticky top-0 z-40 border-b border-[#e1e6ee] bg-white/95 backdrop-blur">
+        <div className="page-container flex h-[72px] items-center gap-5">
+          <a href="/dashboard" aria-label="Accueil Lydoc" className="shrink-0">
+            <Brand />
           </a>
-        </div>
-        <nav className="grid gap-1 px-3" aria-label="Navigation de l’espace client">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const selected = active === item.id;
-            return (
-              <a key={item.id} href={item.href} className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${selected ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
-                <Icon size={18} aria-hidden="true" /> {item.label}
-              </a>
-            );
-          })}
-          {isAdmin ? (
-            <>
-              <a href="/admin/rules" className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "admin" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
-                <ShieldCheck size={18} /> Règlements
-              </a>
-              <a href="/admin/invoices" className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "admin-invoices" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}>
-                <FileText size={18} /> Factures clients
-              </a>
-            </>
-          ) : null}
-        </nav>
-        <div className="mt-auto border-t border-white/10 px-3 py-4">
-          <a href="/faq" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"><CircleHelp size={18} /> Aide</a>
-          <a href="/profile" className={`flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold ${active === "profile" ? "bg-white/[0.12] text-white" : "text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"}`}><Settings size={18} /> Paramètres</a>
-          <a href="/connexion" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#bdc9dc] hover:bg-white/[0.07] hover:text-white"><LogOut size={18} /> Changer de compte</a>
-        </div>
-      </aside>
 
-      <div className="min-w-0 lg:col-start-2">
-        <header className="sticky top-0 z-40 flex h-[68px] items-center justify-between border-b border-[#dce3ed] bg-white/95 px-4 backdrop-blur sm:px-7 lg:px-9">
-          <button type="button" onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-md border border-[#dce3ed] lg:hidden" aria-label="Ouvrir le menu"><Menu size={20} /></button>
-          <div className="hidden lg:block">
-            <p className="text-xs font-semibold text-[#7a8499]">Espace personnel</p>
-            <p className="text-sm font-extrabold text-[#102544]">Mes remboursements</p>
-          </div>
-          <a href="/dashboard" className="lg:hidden"><Brand /></a>
-          <div className="flex items-center gap-2">
-            <button type="button" className="relative grid h-10 w-10 place-items-center rounded-md text-[#536078] hover:bg-[#edf2f8]" aria-label="Notifications">
+          <nav
+            className="ml-7 hidden h-full items-center gap-9 md:flex"
+            aria-label="Navigation principale"
+          >
+            {navigation.map((item) => (
+              <a
+                key={item.id}
+                href={item.href}
+                aria-current={active === item.id ? "page" : undefined}
+                className={`relative flex h-full items-center text-sm font-bold transition-colors ${
+                  active === item.id
+                    ? "text-[#2457f5]"
+                    : "text-[#34415d] hover:text-[#2457f5]"
+                }`}
+              >
+                {item.label}
+                {active === item.id ? (
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#2457f5]" />
+                ) : null}
+              </a>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+            <a
+              href="/documents?new=1"
+              aria-label="Ajouter une facture"
+              title="Ajouter une facture"
+              className="grid h-10 w-10 place-items-center rounded-full border border-[#d8e0eb] text-[#2457f5] transition-colors hover:border-[#2457f5] hover:bg-[#f4f7ff]"
+            >
+              <Plus size={20} />
+            </a>
+            <button
+              type="button"
+              aria-label="Notifications"
+              title="Notifications"
+              className="relative grid h-10 w-10 place-items-center rounded-full text-[#17213b] hover:bg-[#f1f4f8]"
+            >
               <Bell size={19} />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-[#e9654b]" />
+              <span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-[#e9654b]" />
             </button>
-            <div className="hidden h-8 w-px bg-[#e2e8f0] sm:block" />
-            <div className="flex items-center gap-2 pl-1">
-              <span className="grid h-9 w-9 place-items-center rounded-md bg-[#e5ecff] text-xs font-extrabold text-[#2457f5]">{initials}</span>
-              <div className="hidden max-w-[190px] sm:block">
-                <p className="truncate text-sm font-bold text-[#102544]">{email ?? "Mon compte"}</p>
-                <p className="text-xs text-[#7a8499]">Compte sécurisé</p>
-              </div>
-            </div>
-          </div>
-        </header>
-        <main>{children}</main>
-      </div>
 
-      {open ? (
-        <div className="fixed inset-0 z-[60] lg:hidden">
-          <button type="button" className="absolute inset-0 bg-[#07152a]/[0.55]" aria-label="Fermer le menu" onClick={() => setOpen(false)} />
-          <aside className="relative flex h-full w-[286px] max-w-[86vw] flex-col bg-[#102544] p-4 text-white">
-            <div className="flex items-center justify-between px-2 py-2">
-              <Brand inverse />
-              <button type="button" onClick={() => setOpen(false)} className="grid h-9 w-9 place-items-center rounded-md text-white hover:bg-white/10" aria-label="Fermer"><X size={20} /></button>
-            </div>
-            <a href="/dashboard#deposer" onClick={() => setOpen(false)} className="my-5 flex min-h-11 items-center justify-center gap-2 rounded-md bg-white text-sm font-extrabold text-[#102544]"><Plus size={17} /> Déposer une facture</a>
-            <nav className="grid gap-1">
+            <details className="group relative hidden sm:block">
+              <summary
+                className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-[#f3f6fa] [&::-webkit-details-marker]:hidden"
+                aria-label="Ouvrir le menu du compte"
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#edf1f7] text-xs font-extrabold text-[#17213b]">
+                  {initials}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className="text-[#6e7a91] transition-transform group-open:rotate-180"
+                />
+              </summary>
+              <div className="absolute right-0 top-[48px] w-64 overflow-hidden rounded-md border border-[#dce3ed] bg-white py-2 shadow-[0_18px_50px_rgba(16,37,68,0.14)]">
+                <div className="border-b border-[#e7ebf1] px-4 pb-3 pt-1">
+                  <p className="text-[11px] font-bold uppercase text-[#7a8499]">
+                    Compte
+                  </p>
+                  <p className="mt-1 truncate text-sm font-bold text-[#17213b]">
+                    {email ?? "Mon compte"}
+                  </p>
+                </div>
+                <AccountLinks active={active} isAdmin={isAdmin} />
+              </div>
+            </details>
+
+            <button
+              type="button"
+              onClick={() => setMobileOpen((current) => !current)}
+              className="grid h-10 w-10 place-items-center rounded-md text-[#17213b] hover:bg-[#f1f4f8] md:hidden"
+              aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? <X size={21} /> : <Menu size={21} />}
+            </button>
+          </div>
+        </div>
+
+        {mobileOpen ? (
+          <div className="border-t border-[#e5eaf1] bg-white px-4 py-4 md:hidden">
+            <nav
+              className="page-container grid gap-1"
+              aria-label="Navigation mobile"
+            >
               {navigation.map((item) => {
                 const Icon = item.icon;
-                return <a key={item.id} href={item.href} onClick={() => setOpen(false)} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea] hover:bg-white/10"><Icon size={18} /> {item.label}</a>;
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-bold ${
+                      active === item.id
+                        ? "bg-[#eef3ff] text-[#2457f5]"
+                        : "text-[#34415d] hover:bg-[#f4f6f9]"
+                    }`}
+                  >
+                    <Icon size={18} /> {item.label}
+                  </a>
+                );
               })}
-              {isAdmin ? <><a href="/admin/rules" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><FileCheck2 size={18} /> Règlements</a><a href="/admin/invoices" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><FileText size={18} /> Factures clients</a></> : null}
-              <a href="/profile" className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#d2dbea]"><Settings size={18} /> Paramètres</a>
+              <div className="my-2 h-px bg-[#e5eaf1]" />
+              <AccountLinks
+                active={active}
+                isAdmin={isAdmin}
+                onNavigate={() => setMobileOpen(false)}
+              />
             </nav>
-          </aside>
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </header>
+
+      <main className="min-h-[calc(100vh-72px)]">{children}</main>
     </div>
   );
+}
+
+function AccountLinks({
+  active,
+  isAdmin,
+  onNavigate,
+}: {
+  active: AppSection;
+  isAdmin: boolean;
+  onNavigate?: () => void;
+}) {
+  const linkClass =
+    "flex min-h-10 items-center gap-3 px-4 text-sm font-semibold text-[#3f4b65] hover:bg-[#f4f6f9] hover:text-[#2457f5]";
+
+  return (
+    <div className="py-1">
+      <a
+        href="/profile"
+        onClick={onNavigate}
+        className={`${linkClass} ${active === "profile" ? "text-[#2457f5]" : ""}`}
+      >
+        <Settings size={17} /> Mes informations
+      </a>
+      <a href="/faq" onClick={onNavigate} className={linkClass}>
+        <CircleHelp size={17} /> Aide
+      </a>
+      {isAdmin ? (
+        <>
+          <div className="my-1 h-px bg-[#e7ebf1]" />
+          <a
+            href="/admin/rules"
+            onClick={onNavigate}
+            className={`${linkClass} ${active === "admin" ? "text-[#2457f5]" : ""}`}
+          >
+            <ShieldCheck size={17} /> Règlements
+          </a>
+          <a
+            href="/admin/invoices"
+            onClick={onNavigate}
+            className={`${linkClass} ${active === "admin-invoices" ? "text-[#2457f5]" : ""}`}
+          >
+            <FileText size={17} /> Factures clients
+          </a>
+        </>
+      ) : null}
+      <div className="my-1 h-px bg-[#e7ebf1]" />
+      <a href="/connexion" onClick={onNavigate} className={linkClass}>
+        <LogOut size={17} /> Changer de compte
+      </a>
+    </div>
+  );
+}
+
+function accountInitials(email?: string): string {
+  const localPart = email?.split("@")[0]?.replace(/[^a-z0-9]/gi, "") ?? "LY";
+  return (localPart.slice(0, 2) || "LY").toUpperCase();
 }

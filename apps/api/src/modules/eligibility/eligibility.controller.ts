@@ -28,6 +28,11 @@ export class EligibilityController {
     return { deleted: await this.eligibility.deleteCase(caseId, this.requireUserId(request)) };
   }
 
+  @Post("cases/:id/refunded")
+  async markRefunded(@Param("id") caseId: string, @Req() request: AuthenticatedRequest) {
+    return { case: await this.eligibility.markRefunded(caseId, this.requireUserId(request)) };
+  }
+
   @Post("cases/:id/start")
   async startCase(@Param("id") caseId: string, @Req() request: AuthenticatedRequest) {
     return { case: await this.eligibility.startCase(caseId, this.requireUserId(request)) };
