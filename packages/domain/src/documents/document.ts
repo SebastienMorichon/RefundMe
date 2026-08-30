@@ -35,4 +35,8 @@ export type StoredDocument = Readonly<{
   checksumSha256: string;
   storageKey: string;
   encrypted: true;
+  watermarked: boolean;
+  watermarkVersion?: string;
+  watermarkReference?: string;
+  watermarkedAt?: Date;
 }>;

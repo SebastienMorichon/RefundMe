@@ -1,3 +1,8 @@
+import {
+  readPostalExpenseReimbursement,
+  type PostalExpenseReimbursement,
+} from "../rules/postal-expense-reimbursement";
+
 export type CaseRuleSnapshot = Readonly<{
   ruleId: string;
   version: number;
@@ -32,6 +37,11 @@ export type CaseValidationSnapshot = Readonly<{
   documents: Array<{ id: string; kind: string; originalName: string }>;
   estimatedRecoverableCents: number;
   serviceFeeCents: number;
+  postalExpenseClaim?: Readonly<{
+    requested: boolean;
+    selectedAt: string | null;
+    terms: PostalExpenseReimbursement;
+  }>;
 }>;
 
 export function createCaseRuleSnapshot(rule: {
@@ -141,6 +151,12 @@ export function readCaseValidationSnapshot(value: unknown): CaseValidationSnapsh
       ? [{ id: document.id, kind: document.kind, originalName: document.originalName }]
       : [];
   });
+  const postalExpenseClaim = readPostalExpenseClaimSnapshot(
+    snapshot.postalExpenseClaim,
+  );
+  if (snapshot.postalExpenseClaim !== undefined && !postalExpenseClaim) {
+    return null;
+  }
   return {
     version: 1,
     confirmedAt: snapshot.confirmedAt,
@@ -149,6 +165,28 @@ export function readCaseValidationSnapshot(value: unknown): CaseValidationSnapsh
     documents,
     estimatedRecoverableCents: snapshot.estimatedRecoverableCents,
     serviceFeeCents: snapshot.serviceFeeCents,
+    ...(postalExpenseClaim ? { postalExpenseClaim } : {}),
+  };
+}
+
+function readPostalExpenseClaimSnapshot(
+  value: unknown,
+): CaseValidationSnapshot["postalExpenseClaim"] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const claim = value as Record<string, unknown>;
+  if (
+    typeof claim.requested !== "boolean" ||
+    (claim.selectedAt !== null && typeof claim.selectedAt !== "string") ||
+    !claim.terms ||
+    typeof claim.terms !== "object" ||
+    Array.isArray(claim.terms)
+  ) {
+    return null;
+  }
+  return {
+    requested: claim.requested,
+    selectedAt: claim.selectedAt,
+    terms: readPostalExpenseReimbursement(claim.terms),
   };
 }
 

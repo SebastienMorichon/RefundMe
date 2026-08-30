@@ -1,16 +1,24 @@
 "use client";
 
-import { ArrowRight, FolderKanban, Plus, RefreshCw } from "lucide-react";
+import {
+  ArrowRight,
+  FolderKanban,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "../../components/app-shell";
+import { PageHeading } from "../../components/cockpit-ui";
 import { LoadingState, Notice, StatusBadge } from "../../components/client-ui";
+import { apiFetch as fetch } from "../../lib/api-client";
 import {
   apiUrl,
   caseProgress,
   formatCents,
   formatDate,
-  isFinishedCase,
   nextCaseAction,
   readCaseSummary,
   readJson,
@@ -20,15 +28,24 @@ import {
   type User,
 } from "../../lib/client-data";
 
-type Filter = "active" | "finished";
+type Filter = "all" | "action" | "sent" | "refunded";
+
+const filters: { id: Filter; label: string }[] = [
+  { id: "all", label: "Tous" },
+  { id: "action", label: "À compléter" },
+  { id: "sent", label: "Envoyés" },
+  { id: "refunded", label: "Remboursés" },
+];
 
 export default function CasesPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [cases, setCases] = useState<CaseSummary[]>([]);
-  const [filter, setFilter] = useState<Filter>("active");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const filterTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     void loadCases();
@@ -66,11 +83,41 @@ export default function CasesPage() {
     }
   }
 
-  if (loading) return <LoadingState label="Chargement de vos dossiers..." />;
+  const visibleCases = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase("fr");
+    return cases.filter((item) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        item.rule?.name.toLocaleLowerCase("fr").includes(normalizedSearch) ||
+        item.rule?.organizer.toLocaleLowerCase("fr").includes(normalizedSearch);
+      return matchesSearch && matchesFilter(item, filter);
+    });
+  }, [cases, filter, search]);
 
-  const activeCases = cases.filter((item) => !isFinishedCase(item));
-  const finishedCases = cases.filter(isFinishedCase);
-  const visibleCases = filter === "active" ? activeCases : finishedCases;
+  function handleFilterKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = (currentIndex + 1) % filters.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = (currentIndex - 1 + filters.length) % filters.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = filters.length - 1;
+    }
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextFilter = filters[nextIndex];
+    if (!nextFilter) return;
+    setFilter(nextFilter.id);
+    filterTabRefs.current[nextIndex]?.focus();
+  }
+
+  if (loading) return <LoadingState label="Chargement de vos dossiers..." />;
 
   return (
     <AppShell
@@ -78,26 +125,20 @@ export default function CasesPage() {
       email={user?.email}
       isAdmin={user?.role === "ADMIN"}
     >
-      <div className="page-container max-w-[1120px] py-9 sm:py-12">
-        <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-extrabold uppercase text-[#6f7b92]">
-              Vos remboursements
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold text-[#101a34] sm:text-4xl">
-              Mes dossiers
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-[#667189]">
-              Suivez simplement ce qu’il reste à faire.
-            </p>
-          </div>
-          <a
-            href="/documents?new=1"
-            className="secondary-button self-start sm:self-auto"
-          >
-            <Plus size={17} /> Nouveau dossier
-          </a>
-        </header>
+      <div className="page-container py-7 sm:py-9">
+        <PageHeading
+          eyebrow="Vos remboursements"
+          title="Portefeuille de dossiers"
+          description="Visualisez l’avancement, la prochaine action et le montant associé à chaque demande."
+          action={
+            <a
+              href="/documents?new=1"
+              className="primary-button min-h-10 self-start px-4 text-xs sm:self-auto"
+            >
+              <Plus size={15} /> Nouveau dossier
+            </a>
+          }
+        />
 
         {error ? (
           <div className="mt-6">
@@ -114,135 +155,224 @@ export default function CasesPage() {
           </div>
         ) : null}
 
-        <div
-          className="mt-8 inline-flex rounded-md border border-[#d7dfe9] bg-white p-1"
-          role="tablist"
-          aria-label="Filtrer les dossiers"
-        >
-          <FilterButton
-            active={filter === "active"}
-            onClick={() => setFilter("active")}
-            label="En cours"
-            count={activeCases.length}
-          />
-          <FilterButton
-            active={filter === "finished"}
-            onClick={() => setFilter("finished")}
-            label="Terminés"
-            count={finishedCases.length}
-          />
-        </div>
+        <section className="surface mt-6 overflow-hidden">
+          <div className="flex flex-col gap-4 border-b border-[#e3e9e6] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              className="grid grid-cols-2 gap-1 sm:flex"
+              role="tablist"
+              aria-label="Filtrer les dossiers"
+            >
+              {filters.map((item, index) => (
+                <button
+                  key={item.id}
+                  id={`case-filter-${item.id}`}
+                  ref={(element) => {
+                    filterTabRefs.current[index] = element;
+                  }}
+                  type="button"
+                  onClick={() => setFilter(item.id)}
+                  onKeyDown={(event) => handleFilterKeyDown(event, index)}
+                  role="tab"
+                  aria-selected={filter === item.id}
+                  aria-controls="case-filter-panel"
+                  tabIndex={filter === item.id ? 0 : -1}
+                  className={`min-h-9 w-full rounded-md px-3 text-xs font-extrabold transition-colors sm:w-auto ${
+                    filter === item.id
+                      ? "bg-[#087a55] text-white"
+                      : "text-[#66736d] hover:bg-[#f0f4f2] hover:text-[#24332c]"
+                  }`}
+                >
+                  {item.label}
+                  <span className="ml-1.5 opacity-70">
+                    {
+                      cases.filter((caseItem) =>
+                        matchesFilter(caseItem, item.id),
+                      ).length
+                    }
+                  </span>
+                </button>
+              ))}
+            </div>
+            <label className="relative block w-full lg:w-[250px]">
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7e8a84]"
+              />
+              <span className="sr-only">Rechercher un dossier</span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Rechercher un dossier"
+                className="h-9 w-full rounded-md border border-[#d5dfda] bg-white pl-9 pr-3 text-xs text-[#24332c] outline-none transition-colors placeholder:text-[#929d97] focus:border-[#087a55]"
+              />
+            </label>
+          </div>
 
-        <section className="surface mt-5 overflow-hidden" aria-live="polite">
+          <div
+            id="case-filter-panel"
+            role="tabpanel"
+            aria-labelledby={`case-filter-${filter}`}
+            tabIndex={0}
+          >
           {visibleCases.length === 0 ? (
             <div className="px-5 py-16 text-center">
-              <FolderKanban className="mx-auto text-[#9aa5b8]" size={28} />
-              <h2 className="mt-4 text-lg font-extrabold text-[#101a34]">
-                {filter === "active"
-                  ? "Aucun dossier en cours"
-                  : "Aucun dossier terminé"}
+              <FolderKanban className="mx-auto text-[#99a59f]" size={28} />
+              <h2 className="mt-4 text-lg font-extrabold text-[#24332c]">
+                Aucun dossier dans cette vue
               </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#667189]">
-                {filter === "active"
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
+                {cases.length === 0
                   ? "Analysez une facture pour rechercher un remboursement possible."
-                  : "Vos remboursements terminés apparaîtront ici."}
+                  : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
               </p>
-              {filter === "active" ? (
+              {cases.length === 0 ? (
                 <a href="/documents?new=1" className="primary-button mt-6">
                   Analyser une facture <ArrowRight size={17} />
                 </a>
               ) : null}
             </div>
           ) : (
-            <div className="divide-y divide-[#e3e8ef]">
-              {visibleCases.map((item) => (
-                <CaseRow key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <div className="hidden lg:block">
+                <div className="grid grid-cols-[minmax(180px,1.1fr)_170px_minmax(190px,1fr)_130px_125px_36px] gap-5 bg-[#f8faf9] px-5 py-3 text-[10px] font-extrabold uppercase text-[#849089]">
+                  <span>Dossier</span>
+                  <span>Progression</span>
+                  <span>Prochaine action</span>
+                  <span>Montant</span>
+                  <span>Statut</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-[#e7ece9]">
+                  {visibleCases.map((item) => (
+                    <CaseTableRow key={item.id} item={item} />
+                  ))}
+                </div>
+              </div>
+              <div className="divide-y divide-[#e7ece9] lg:hidden">
+                {visibleCases.map((item) => (
+                  <CaseMobileRow key={item.id} item={item} />
+                ))}
+              </div>
+            </>
           )}
-        </section>
 
-        {visibleCases.length > 0 ? (
-          <p className="mt-6 text-center text-xs text-[#7a8499]">
-            Les dossiers qui demandent une action apparaissent en premier.
-          </p>
-        ) : null}
+          {visibleCases.length > 0 ? (
+            <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-3 text-right text-[11px] text-[#7b8781]">
+              {visibleCases.length} dossier
+              {visibleCases.length > 1 ? "s" : ""} affiché
+              {visibleCases.length > 1 ? "s" : ""}
+            </div>
+          ) : null}
+          </div>
+        </section>
       </div>
     </AppShell>
   );
 }
 
-function FilterButton({
-  active,
-  onClick,
-  label,
-  count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  count: number;
-}) {
+function CaseTableRow({ item }: { item: CaseSummary }) {
+  const progress = caseProgress(item);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      role="tab"
-      aria-selected={active}
-      className={`flex min-h-10 items-center gap-2 rounded-md px-4 text-sm font-extrabold ${active ? "bg-[#eef3ff] text-[#2457f5]" : "text-[#667189] hover:text-[#2457f5]"}`}
+    <a
+      href={`/cases/${item.id}`}
+      className="grid grid-cols-[minmax(180px,1.1fr)_170px_minmax(190px,1fr)_130px_125px_36px] items-center gap-5 px-5 py-4 transition-colors hover:bg-[#f8faf9]"
     >
-      {label}
-      <span
-        className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] ${active ? "bg-[#2457f5] text-white" : "bg-[#edf1f6] text-[#667189]"}`}
-      >
-        {count}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-extrabold text-[#24332c]">
+          {item.rule?.name ?? "Dossier de remboursement"}
+        </span>
+        <span className="mt-1 block truncate text-[11px] text-[#7b8781]">
+          {item.rule?.organizer ?? "Organisateur"}
+          {item.createdAt ? ` · ${formatDate(item.createdAt)}` : ""}
+        </span>
       </span>
-    </button>
+      <span>
+        <span className="flex items-center justify-between text-[11px] font-bold text-[#59665f]">
+          <span>{progress} %</span>
+          <span>{progressLabel(progress)}</span>
+        </span>
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-sm bg-[#e4eae7]">
+          <span
+            className="block h-full rounded-sm bg-[#087a55]"
+            style={{ width: `${progress}%` }}
+          />
+        </span>
+      </span>
+      <span className="text-xs font-semibold leading-5 text-[#59665f]">
+        {nextCaseAction(item)}
+      </span>
+      <span className="text-sm font-extrabold text-[#24332c]">
+        {formatCents(item.estimatedRecoverableCents)}
+      </span>
+      <span>
+        <StatusBadge status={item.status} />
+      </span>
+      <ArrowRight size={16} className="text-[#087a55]" />
+    </a>
   );
 }
 
-function CaseRow({ item }: { item: CaseSummary }) {
+function CaseMobileRow({ item }: { item: CaseSummary }) {
   const progress = caseProgress(item);
-  const finished = isFinishedCase(item);
-
   return (
-    <article className="grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(190px,1.1fr)_110px_minmax(230px,1fr)_150px] lg:items-center">
-      <div className="min-w-0">
-        <h2 className="truncate text-base font-extrabold text-[#17213b]">
-          {item.rule?.name ?? "Dossier de remboursement"}
-        </h2>
-        <p className="mt-1 text-xs text-[#7a8499]">
-          {item.rule?.organizer ?? "Organisateur"}
-          {item.createdAt ? ` · créé le ${formatDate(item.createdAt)}` : ""}
-        </p>
-      </div>
-      <p className="text-lg font-extrabold text-[#101a34]">
-        {formatCents(item.estimatedRecoverableCents)}
-      </p>
-      <div>
-        {finished ? (
-          <StatusBadge status={item.status} />
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-3 text-xs font-bold text-[#536078]">
-              <span>{nextCaseAction(item)}</span>
-              <span>{progress} %</span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5eaf1]">
-              <div
-                className="h-full rounded-full bg-[#2457f5]"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </>
-        )}
-      </div>
-      <a
-        href={`/cases/${item.id}`}
-        className="inline-flex items-center justify-start gap-2 text-sm font-extrabold text-[#2457f5] hover:text-[#1947d8] lg:justify-end"
-      >
-        {finished ? "Voir" : nextCaseAction(item)} <ArrowRight size={16} />
-      </a>
-    </article>
+    <a
+      href={`/cases/${item.id}`}
+      className="block px-5 py-5 transition-colors hover:bg-[#f8faf9]"
+    >
+      <span className="flex items-start justify-between gap-4">
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-extrabold text-[#24332c]">
+            {item.rule?.name ?? "Dossier de remboursement"}
+          </span>
+          <span className="mt-1 block text-xs text-[#7b8781]">
+            {item.rule?.organizer ?? "Organisateur"}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-extrabold text-[#24332c]">
+          {formatCents(item.estimatedRecoverableCents)}
+        </span>
+      </span>
+      <span className="mt-4 flex items-center justify-between text-xs font-bold text-[#59665f]">
+        <span>{nextCaseAction(item)}</span>
+        <span className="text-[#087a55]">{progress} %</span>
+      </span>
+      <span className="mt-2 block h-1.5 overflow-hidden rounded-sm bg-[#e4eae7]">
+        <span
+          className="block h-full rounded-sm bg-[#087a55]"
+          style={{ width: `${progress}%` }}
+        />
+      </span>
+      <span className="mt-4 flex items-center justify-between">
+        <StatusBadge status={item.status} />
+        <ArrowRight size={16} className="text-[#087a55]" />
+      </span>
+    </a>
   );
+}
+
+function matchesFilter(item: CaseSummary, filter: Filter): boolean {
+  if (filter === "all") return true;
+  if (filter === "refunded") return item.status === "REFUNDED";
+  if (filter === "sent")
+    return (
+      item.status !== "REFUNDED" &&
+      (item.fulfillmentMode !== null ||
+        ["PAID", "PRINT_READY", "SENT"].includes(item.status))
+    );
+  return (
+    item.status !== "REFUNDED" &&
+    item.fulfillmentMode === null &&
+    ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(
+      item.status,
+    )
+  );
+}
+
+function progressLabel(progress: number): string {
+  if (progress >= 100) return "Terminé";
+  if (progress >= 80) return "En traitement";
+  if (progress >= 60) return "Prêt";
+  if (progress >= 40) return "À compléter";
+  return "Détecté";
 }

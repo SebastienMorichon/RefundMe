@@ -9,10 +9,12 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"No infrastructure tests yet\""
+    "test": "pnpm build && node --test test/*.test.cjs"
   },
   "dependencies": {
-    "@lydoc/application": "workspace:*"
+    "@lydoc/application": "workspace:*",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.35.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

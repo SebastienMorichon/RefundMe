@@ -7,7 +7,7 @@
     "build": "nest build",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test test/session.service.test.cjs test/packets.service.test.cjs test/payments.service.test.cjs test/case-snapshots.test.cjs test/shipping.test.cjs"
+    "test": "pnpm build && node --test test/*.test.cjs"
   },
   "dependencies": {
     "@lydoc/application": "workspace:*",

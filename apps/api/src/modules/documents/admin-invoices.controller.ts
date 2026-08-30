@@ -28,7 +28,11 @@ export class AdminInvoicesController {
   @Get()
   async list() {
     const invoices = await this.prisma.document.findMany({
-      where: { kind: DocumentKind.ORANGE_INVOICE, ownerId: { not: null } },
+      where: {
+        kind: DocumentKind.ORANGE_INVOICE,
+        ownerId: { not: null },
+        deletedAt: null,
+      },
       select: {
         id: true,
         originalName: true,
@@ -38,7 +42,9 @@ export class AdminInvoicesController {
         uploadedAt: true,
         analyzedAt: true,
         owner: { select: { email: true } },
-        caseDocuments: { select: { case: { select: { id: true, status: true } } } },
+        caseDocuments: {
+          select: { case: { select: { id: true, status: true } } },
+        },
       },
       orderBy: { uploadedAt: "desc" },
       take: 200,
@@ -69,7 +75,12 @@ export class AdminInvoicesController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const invoice = await this.prisma.document.findFirst({
-      where: { id: documentId, kind: DocumentKind.ORANGE_INVOICE, ownerId: { not: null } },
+      where: {
+        id: documentId,
+        kind: DocumentKind.ORANGE_INVOICE,
+        ownerId: { not: null },
+        deletedAt: null,
+      },
     });
     if (!invoice?.ownerId) {
       throw new NotFoundException("Facture introuvable.");
@@ -84,10 +95,15 @@ export class AdminInvoicesController {
           checksumSha256: invoice.checksumSha256,
           sizeBytes: invoice.sizeBytes,
         },
-        encryptionContext: { ownerId: invoice.ownerId, documentKind: invoice.kind },
+        encryptionContext: {
+          ownerId: invoice.ownerId,
+          documentKind: invoice.kind,
+        },
       });
     } catch {
-      throw new BadRequestException("Cette facture ne peut pas etre dechiffree avec la cle actuelle.");
+      throw new BadRequestException(
+        "Cette facture ne peut pas etre dechiffree avec la cle actuelle.",
+      );
     }
 
     await this.prisma.auditLog.create({
@@ -96,14 +112,15 @@ export class AdminInvoicesController {
         action: "CLIENT_INVOICE_VIEWED",
         entityType: "Document",
         entityId: invoice.id,
-        metadata: { ownerId: invoice.ownerId, originalName: invoice.originalName },
+        metadata: { kind: invoice.kind },
       },
     });
 
     response.set({
       "Content-Type": invoice.mimeType,
-      "Content-Disposition": `inline; filename="facture-client-${invoice.id}${fileExtension(invoice.mimeType)}"`,
+      "Content-Disposition": `attachment; filename="facture-client-${invoice.id}${fileExtension(invoice.mimeType)}"`,
       "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     });
     return new StreamableFile(Buffer.from(bytes));
   }

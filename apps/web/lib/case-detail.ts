@@ -5,9 +5,37 @@ export type RequiredDocument = {
   label: string;
   required: boolean;
   supplied: boolean;
+  documentId: string | null;
 };
 
 export type FulfillmentMode = "SELF_SERVICE" | "MANAGED_POSTAL";
+
+export type PostalExpenseReimbursementReview = {
+  available: boolean;
+  requested: boolean;
+  locked: boolean;
+  selectedAt: string | null;
+  appliesTo: "REFUND_REQUEST" | "RULE_COPY_REQUEST" | "BOTH" | "UNSPECIFIED";
+  postage: {
+    reimbursable: boolean;
+    amountCents: number | null;
+    basis: string;
+  };
+  printing: {
+    reimbursable: boolean;
+    centsPerPage: number | null;
+    maxPages: number | null;
+    basis: string;
+  };
+  claimLimit: {
+    scope: "PER_REQUEST" | "PER_PARTICIPANT_PER_MONTH" | "PER_PARTICIPANT_PER_GAME" | "PER_HOUSEHOLD_PER_GAME" | "OTHER" | "UNSPECIFIED";
+    strict: boolean;
+    details: string;
+  };
+  requestInstructions: string;
+  requiredProofs: string[];
+  sourceReference: string;
+};
 
 export type CaseDetail = {
   id: string;
@@ -26,6 +54,7 @@ export type CaseDetail = {
     reimbursementAddress: string;
     reimbursementDeadline: string;
     detectedSmsCount: number;
+    postalExpenseReimbursement: PostalExpenseReimbursementReview;
   };
   postalShipment: {
     provider: string;
@@ -33,7 +62,7 @@ export type CaseDetail = {
     product: string;
     status: string;
     postageCents: number;
-    providerServiceCents: number;
+    printingCents: number;
     totalCents: number;
     trackingNumber: string | null;
     errorMessage: string | null;
@@ -44,11 +73,103 @@ export type CaseDetail = {
   } | null;
 };
 
-export function documentHelp(kind: string): string {
-  if (kind === "BANK_DETAILS")
-    return "Nécessaire pour recevoir le remboursement";
-  if (kind === "IDENTITY_DOCUMENT") return "Demandée par le règlement du jeu";
-  return "Pièce demandée par le règlement";
+export function documentName(
+  document: Pick<RequiredDocument, "kind" | "label">,
+): string {
+  if (document.kind === "IDENTITY_DOCUMENT") return "Pièce d’identité";
+  if (document.kind === "BANK_DETAILS") return "RIB";
+  if (document.kind === "ORANGE_INVOICE") return "Facture opérateur";
+  if (document.kind === "PURCHASE_PROOF") {
+    return mentionsOperatorInvoice(document.label)
+      ? "Facture opérateur"
+      : "Preuve d’achat";
+  }
+  if (document.kind === "TRAIN_TICKET") return "Billet de train";
+  if (document.kind === "FLIGHT_TICKET") return "Billet d’avion";
+  if (document.kind === "WARRANTY") return "Garantie";
+  if (document.kind === "OTHER" && mentionsPrepaidCard(document.label)) {
+    return "Justificatif carte prépayée";
+  }
+  return "Justificatif complémentaire";
+}
+
+export function documentHelp(
+  document: Pick<RequiredDocument, "kind" | "label" | "required">,
+): string {
+  if (!document.required && mentionsPrepaidCard(document.label)) {
+    return "Uniquement si vous avez participé avec une carte prépayée.";
+  }
+  if (!document.required)
+    return "À ajouter uniquement si votre situation le nécessite.";
+  if (document.kind === "BANK_DETAILS") {
+    return "Pour recevoir le remboursement.";
+  }
+  if (document.kind === "IDENTITY_DOCUMENT") {
+    return "Pour confirmer l’identité du titulaire de la ligne.";
+  }
+  if (
+    document.kind === "ORANGE_INVOICE" ||
+    document.kind === "PURCHASE_PROOF"
+  ) {
+    return "Pour justifier les SMS facturés.";
+  }
+  return "Demandé par le règlement du jeu.";
+}
+
+export function documentUploadLabel(
+  document: Pick<RequiredDocument, "kind" | "label">,
+): string {
+  if (document.kind === "IDENTITY_DOCUMENT")
+    return "Ajouter ma pièce d’identité";
+  if (document.kind === "BANK_DETAILS") return "Ajouter mon RIB";
+  if (
+    document.kind === "ORANGE_INVOICE" ||
+    document.kind === "PURCHASE_PROOF"
+  ) {
+    return "Ajouter ma facture";
+  }
+  if (document.kind === "OTHER" && mentionsPrepaidCard(document.label)) {
+    return "Ajouter un justificatif";
+  }
+  return `Ajouter ${documentName(document).toLocaleLowerCase("fr-FR")}`;
+}
+
+export function missingDocumentPrompt(
+  document: Pick<RequiredDocument, "kind" | "label" | "documentId"> | undefined,
+): string {
+  if (!document) return "Ajoutez la pièce manquante pour continuer.";
+  if (document.documentId) {
+    return "Remplacez cet ancien document pour lui appliquer le filigrane requis.";
+  }
+  if (document.kind === "IDENTITY_DOCUMENT") {
+    return "Ajoutez votre pièce d’identité pour continuer.";
+  }
+  if (document.kind === "BANK_DETAILS") {
+    return "Ajoutez votre RIB pour continuer.";
+  }
+  if (
+    document.kind === "ORANGE_INVOICE" ||
+    document.kind === "PURCHASE_PROOF"
+  ) {
+    return "Ajoutez votre facture opérateur pour continuer.";
+  }
+  return `Ajoutez ${documentName(document).toLocaleLowerCase("fr-FR")} pour continuer.`;
+}
+
+function mentionsOperatorInvoice(label: string): boolean {
+  const normalized = normalizeLabel(label);
+  return normalized.includes("facture") || normalized.includes("operateur");
+}
+
+function mentionsPrepaidCard(label: string): boolean {
+  return normalizeLabel(label).includes("carte prepayee");
+}
+
+function normalizeLabel(label: string): string {
+  return label
+    .toLocaleLowerCase("fr-FR")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
 }
 
 export function journeyStep(administrativeCase: CaseDetail): number {
@@ -59,7 +180,10 @@ export function journeyStep(administrativeCase: CaseDetail): number {
   return 1;
 }
 
-export function caseNotice(administrativeCase: CaseDetail): {
+export function caseNotice(
+  administrativeCase: CaseDetail,
+  managedPostalAvailable = true,
+): {
   message: string;
   tone: "info" | "success" | "error";
 } {
@@ -84,6 +208,15 @@ export function caseNotice(administrativeCase: CaseDetail): {
     return {
       message: "Votre dossier gratuit est prêt à être téléchargé.",
       tone: "success",
+    };
+  if (
+    !managedPostalAvailable &&
+    administrativeCase.fulfillmentMode === "MANAGED_POSTAL"
+  )
+    return {
+      message:
+        "L’envoi pris en charge est temporairement indisponible. Le téléchargement gratuit reste accessible.",
+      tone: "info",
     };
   if (administrativeCase.postalShipment?.status === "QUOTED")
     return {
@@ -242,6 +375,10 @@ export function readCaseDetail(value: unknown): CaseDetail | null {
           label: document.label,
           required: document.required,
           supplied: document.supplied,
+          documentId:
+            typeof document.documentId === "string"
+              ? document.documentId
+              : null,
         }
       : null;
   };
@@ -304,9 +441,89 @@ export function readCaseDetail(value: unknown): CaseDetail | null {
       reimbursementAddress: review.reimbursementAddress,
       reimbursementDeadline: review.reimbursementDeadline,
       detectedSmsCount: review.detectedSmsCount,
+      postalExpenseReimbursement: readPostalExpenseReimbursementReview(
+        review.postalExpenseReimbursement,
+      ),
     },
     postalShipment: readPostalShipment(postalShipment),
   };
+}
+
+function readPostalExpenseReimbursementReview(
+  value: unknown,
+): PostalExpenseReimbursementReview {
+  const input = readRecord(value);
+  const postage = readRecord(input.postage);
+  const printing = readRecord(input.printing);
+  const claimLimit = readRecord(input.claimLimit);
+  return {
+    available: input.available === true,
+    requested: input.requested === true,
+    locked: input.locked === true,
+    selectedAt: typeof input.selectedAt === "string" ? input.selectedAt : null,
+    appliesTo: readPostalAppliesTo(input.appliesTo),
+    postage: {
+      reimbursable: postage.reimbursable === true,
+      amountCents: readOptionalInteger(postage.amountCents),
+      basis: typeof postage.basis === "string" ? postage.basis : "",
+    },
+    printing: {
+      reimbursable: printing.reimbursable === true,
+      centsPerPage: readOptionalInteger(printing.centsPerPage),
+      maxPages: readOptionalInteger(printing.maxPages),
+      basis: typeof printing.basis === "string" ? printing.basis : "",
+    },
+    claimLimit: {
+      scope: readPostalClaimScope(claimLimit.scope),
+      strict: claimLimit.strict === true,
+      details: typeof claimLimit.details === "string" ? claimLimit.details : "",
+    },
+    requestInstructions:
+      typeof input.requestInstructions === "string"
+        ? input.requestInstructions
+        : "",
+    requiredProofs: Array.isArray(input.requiredProofs)
+      ? input.requiredProofs.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [],
+    sourceReference:
+      typeof input.sourceReference === "string" ? input.sourceReference : "",
+  };
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readOptionalInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : null;
+}
+
+function readPostalAppliesTo(
+  value: unknown,
+): PostalExpenseReimbursementReview["appliesTo"] {
+  return value === "REFUND_REQUEST" ||
+    value === "RULE_COPY_REQUEST" ||
+    value === "BOTH"
+    ? value
+    : "UNSPECIFIED";
+}
+
+function readPostalClaimScope(
+  value: unknown,
+): PostalExpenseReimbursementReview["claimLimit"]["scope"] {
+  return value === "PER_REQUEST" ||
+    value === "PER_PARTICIPANT_PER_MONTH" ||
+    value === "PER_PARTICIPANT_PER_GAME" ||
+    value === "PER_HOUSEHOLD_PER_GAME" ||
+    value === "OTHER"
+    ? value
+    : "UNSPECIFIED";
 }
 
 function readPostalShipment(
@@ -319,7 +536,7 @@ function readPostalShipment(
     typeof value.product !== "string" ||
     typeof value.status !== "string" ||
     typeof value.postageCents !== "number" ||
-    typeof value.providerServiceCents !== "number" ||
+    typeof value.printingCents !== "number" ||
     typeof value.totalCents !== "number" ||
     typeof value.simulation !== "boolean"
   )
@@ -330,7 +547,7 @@ function readPostalShipment(
     product: value.product,
     status: value.status,
     postageCents: value.postageCents,
-    providerServiceCents: value.providerServiceCents,
+    printingCents: value.printingCents,
     totalCents: value.totalCents,
     trackingNumber:
       typeof value.trackingNumber === "string" ? value.trackingNumber : null,

@@ -61,6 +61,20 @@ test("reads a complete customer confirmation snapshot", () => {
     documents: [{ id: "doc-1", kind: "ORANGE_INVOICE", originalName: "facture.pdf" }],
     estimatedRecoverableCents: 500,
     serviceFeeCents: 299,
+    postalExpenseClaim: {
+      requested: true,
+      selectedAt: "2026-03-02T00:00:00.000Z",
+      terms: {
+        available: true,
+        appliesTo: "REFUND_REQUEST",
+        postage: { reimbursable: true, amountCents: null, basis: "tarif lent" },
+        printing: { reimbursable: true, centsPerPage: 15, maxPages: null, basis: "" },
+        claimLimit: { scope: "PER_PARTICIPANT_PER_GAME", strict: true, details: "une demande par jeu" },
+        requestInstructions: "demande expresse",
+        requiredProofs: [],
+        sourceReference: "Article 6",
+      },
+    },
   };
 
   assert.deepEqual(readCaseValidationSnapshot(value), value);

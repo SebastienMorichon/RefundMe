@@ -4,9 +4,12 @@ import { ArrowLeft, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "../../../components/app-shell";
+import { DetectionReviewCard } from "../../../components/detection-review-card";
+import { apiFetch as fetch } from "../../../lib/api-client";
 import {
   ChoiceView,
   DocumentsView,
+  ManagedPostalUnavailableView,
   PostalConsentView,
   PostalQuoteView,
   ReviewView,
@@ -24,8 +27,8 @@ import {
 import {
   apiUrl,
   errorMessage,
-  fileToBase64,
   formatCents,
+  readDocument,
   readJson,
   readUser,
   type User,
@@ -37,6 +40,7 @@ import {
   type CaseDetail,
   type FulfillmentMode,
 } from "../../../lib/case-detail";
+import { managedPostalEnabled } from "../../../lib/feature-flags";
 
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = ["application/pdf", "image/png", "image/jpeg"];
@@ -115,7 +119,7 @@ export default function CasePage() {
         throw new Error(errorMessage(payload, "Dossier introuvable."));
       setAdministrativeCase(parsedCase);
       setFulfillmentSelection(parsedCase.fulfillmentMode);
-      const state = caseNotice(parsedCase);
+      const state = caseNotice(parsedCase, managedPostalEnabled);
       setMessage(state.message);
       setMessageTone(state.tone);
       return parsedCase;
@@ -132,6 +136,85 @@ export default function CasePage() {
     await sendCaseAction("start", "Lecture des exigences du règlement...");
   }
 
+  async function updateDetection(smsCount: number, amountCents: number) {
+    setIsBusy(true);
+    setMessage("Enregistrement de votre vérification...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/detection`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ smsCount, amountCents }),
+      });
+      const payload = await readJson(response);
+      const parsedCase = readCaseDetail(payload.case);
+      if (!response.ok || !parsedCase) {
+        throw new Error(
+          errorMessage(payload, "Impossible d’enregistrer la correction."),
+        );
+      }
+      setAdministrativeCase(parsedCase);
+      setConfirmationAccepted(false);
+      setMessage("Le nombre de SMS et le montant ont été enregistrés.");
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’enregistrer la correction.",
+      );
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function updatePostalExpenseClaim(requested: boolean) {
+    setIsBusy(true);
+    setMessage(
+      requested
+        ? "Ajout des frais postaux et d'impression à votre demande..."
+        : "Retrait des frais postaux et d'impression...",
+    );
+    setMessageTone("info");
+    try {
+      const response = await fetch(
+        `${apiUrl}/cases/${caseId}/postal-expense-claim`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ requested }),
+        },
+      );
+      const payload = await readJson(response);
+      const parsedCase = readCaseDetail(payload.case);
+      if (!response.ok || !parsedCase) {
+        throw new Error(
+          errorMessage(payload, "Impossible d'enregistrer votre choix."),
+        );
+      }
+      setAdministrativeCase(parsedCase);
+      setConfirmationAccepted(false);
+      setMessage(
+        requested
+          ? "La lettre demandera aussi le remboursement des frais autorisés par le règlement."
+          : "La demande de remboursement des frais annexes a été retirée.",
+      );
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'enregistrer votre choix.",
+      );
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function sendCaseAction(action: string, progressMessage: string) {
     setIsBusy(true);
     setMessage(progressMessage);
@@ -146,7 +229,7 @@ export default function CasePage() {
       if (!response.ok || !parsedCase)
         throw new Error(errorMessage(payload, "Action impossible."));
       setAdministrativeCase(parsedCase);
-      const state = caseNotice(parsedCase);
+      const state = caseNotice(parsedCase, managedPostalEnabled);
       setMessage(state.message);
       setMessageTone(state.tone);
     } catch (error) {
@@ -172,20 +255,17 @@ export default function CasePage() {
     setMessage("Ajout sécurisé de la pièce au dossier...");
     setMessageTone("info");
     try {
+      const form = new FormData();
+      form.set("kind", kind);
+      form.set("file", file, file.name);
       const uploadResponse = await fetch(`${apiUrl}/documents`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          kind,
-          originalName: file.name,
-          mimeType: file.type,
-          contentBase64: await fileToBase64(file),
-        }),
+        body: form,
       });
       const uploadPayload = await readJson(uploadResponse);
-      const documentId = readDocumentId(uploadPayload.document);
-      if (!uploadResponse.ok || !documentId)
+      const uploadedDocument = readDocument(uploadPayload.document);
+      if (!uploadResponse.ok || !uploadedDocument)
         throw new Error(
           errorMessage(uploadPayload, "Impossible de déposer la pièce."),
         );
@@ -196,7 +276,7 @@ export default function CasePage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ documentId }),
+          body: JSON.stringify({ documentId: uploadedDocument.id }),
         },
       );
       const attachPayload = await readJson(attachResponse);
@@ -211,8 +291,12 @@ export default function CasePage() {
       setAdministrativeCase(parsedCase);
       setMessage(
         parsedCase.missingDocuments.length === 0
-          ? "Toutes les pièces sont réunies."
-          : "La pièce a bien été ajoutée.",
+          ? uploadedDocument.watermarked
+            ? "Toutes les pièces sont réunies. Le document sensible a été filigrané, chiffré et ajouté au dossier."
+            : "Toutes les pièces sont réunies."
+          : uploadedDocument.watermarked
+            ? "La pièce a été filigranée, chiffrée et ajoutée au dossier."
+            : "La pièce a bien été ajoutée.",
       );
       setMessageTone("success");
     } catch (error) {
@@ -266,6 +350,13 @@ export default function CasePage() {
   }
 
   async function chooseFulfillment(mode: FulfillmentMode) {
+    if (mode === "MANAGED_POSTAL" && !managedPostalEnabled) {
+      setMessage(
+        "L’envoi pris en charge sera bientôt disponible. Choisissez le téléchargement gratuit pour continuer.",
+      );
+      setMessageTone("info");
+      return;
+    }
     setIsBusy(true);
     setMessage(
       mode === "SELF_SERVICE"
@@ -545,52 +636,80 @@ export default function CasePage() {
       email={user?.email}
       isAdmin={user?.role === "ADMIN"}
     >
-      <div className="page-container max-w-[1120px] py-8 sm:py-11">
+      <div className="page-container py-7 sm:py-9">
         <a
           href="/cases"
-          className="inline-flex items-center gap-2 text-sm font-bold text-[#667189] hover:text-[#2457f5]"
+          className="inline-flex items-center gap-2 text-xs font-bold text-[#66736d] hover:text-[#087a55]"
         >
           <ArrowLeft size={16} /> Retour à mes dossiers
         </a>
 
-        <header className="mt-7 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-extrabold uppercase text-[#6f7b92]">
-              Dossier de remboursement
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold text-[#101a34] sm:text-4xl">
-              {administrativeCase.rule.name}
-            </h1>
-            <p className="mt-2 text-base text-[#667189]">
-              {formatCents(administrativeCase.estimatedRecoverableCents)} à
-              récupérer · {administrativeCase.rule.organizer}
-            </p>
+        <section className="surface mt-5 overflow-hidden">
+          <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-extrabold uppercase text-[#7c8982]">
+                Dossier de remboursement · Réf.{" "}
+                {administrativeCase.id.slice(-8).toUpperCase()}
+              </p>
+              <h1 className="mt-2 truncate text-2xl font-extrabold text-[#17211d] sm:text-[30px]">
+                {administrativeCase.rule.name}
+              </h1>
+              <p className="mt-2 text-sm text-[#66736d]">
+                {administrativeCase.rule.organizer} ·{" "}
+                {formatCents(administrativeCase.estimatedRecoverableCents)} de
+                potentiel identifié
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusBadge status={administrativeCase.status} />
+              <div className="min-w-[142px] rounded-md border border-[#d7e1dc] bg-[#fbfcfb] px-4 py-3">
+                <p className="text-[9px] font-extrabold uppercase text-[#849089]">
+                  Score de préparation
+                </p>
+                <p className="mt-1 text-xl font-extrabold text-[#087a55]">
+                  {[20, 40, 60, 80, 100][currentStep] ?? 20}
+                  <span className="text-xs text-[#7b8781]"> / 100</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={deleteCase}
+                disabled={isBusy}
+                aria-label="Supprimer le dossier"
+                title="Supprimer le dossier"
+                className="grid h-10 w-10 place-items-center rounded-md text-[#7b8781] hover:bg-[#fff0ec] hover:text-[#b94a35] disabled:opacity-40"
+              >
+                <Trash2 size={17} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={administrativeCase.status} />
-            <button
-              type="button"
-              onClick={deleteCase}
-              disabled={isBusy}
-              aria-label="Supprimer le dossier"
-              title="Supprimer le dossier"
-              className="grid h-10 w-10 place-items-center rounded-md text-[#7a8499] hover:bg-[#fff0ec] hover:text-[#b94a35] disabled:opacity-40"
-            >
-              <Trash2 size={17} />
-            </button>
+          <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-5 sm:px-7">
+            <JourneySteps current={currentStep} />
           </div>
-        </header>
+        </section>
 
-        <div className="mt-7">
+        <div className="mt-5">
           <Notice tone={messageTone} busy={isBusy}>
             {message}
           </Notice>
         </div>
 
-        <div className="mx-auto mt-9 max-w-[920px]">
-          <JourneySteps current={currentStep} />
+        {!administrativeCase.validation &&
+        ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(
+          administrativeCase.status,
+        ) ? (
+          <div className="mx-auto mt-6 max-w-[1020px]">
+            <DetectionReviewCard
+              smsCount={administrativeCase.review.detectedSmsCount}
+              amountCents={administrativeCase.estimatedRecoverableCents}
+              isBusy={isBusy}
+              onSubmit={updateDetection}
+            />
+          </div>
+        ) : null}
 
-          <div className="mt-10">
+        <div className="mx-auto mt-6 max-w-[1020px]">
+          <div>
             {administrativeCase.status === "DRAFT" ? (
               <StartView isBusy={isBusy} onStart={startCase} />
             ) : administrativeCase.missingDocuments.length > 0 ? (
@@ -605,12 +724,14 @@ export default function CasePage() {
                 accepted={confirmationAccepted}
                 isBusy={isBusy}
                 onAccepted={setConfirmationAccepted}
+                onPostalExpenseClaim={updatePostalExpenseClaim}
                 onConfirm={confirmCase}
                 onPreview={openPacket}
               />
             ) : !administrativeCase.fulfillmentMode ? (
               <ChoiceView
                 selected={fulfillmentSelection}
+                managedPostalEnabled={managedPostalEnabled}
                 isBusy={isBusy}
                 onSelect={setFulfillmentSelection}
                 onContinue={() =>
@@ -623,10 +744,17 @@ export default function CasePage() {
             ) : administrativeCase.fulfillmentMode === "SELF_SERVICE" ? (
               <SelfServiceView
                 administrativeCase={administrativeCase}
+                managedPostalEnabled={managedPostalEnabled}
                 isBusy={isBusy}
                 onDownload={openPacket}
                 onSwitch={() => chooseFulfillment("MANAGED_POSTAL")}
                 onRefunded={markRefunded}
+              />
+            ) : !managedPostalEnabled && !isPaid ? (
+              <ManagedPostalUnavailableView
+                isBusy={isBusy}
+                onFree={() => chooseFulfillment("SELF_SERVICE")}
+                onPreview={openPacket}
               />
             ) : !administrativeCase.postalShipment ? (
               <PostalConsentView
@@ -655,8 +783,8 @@ export default function CasePage() {
           </div>
         </div>
 
-        <footer className="mt-12 flex items-start gap-3 border-t border-[#e1e6ee] pt-5 text-xs leading-5 text-[#667189]">
-          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#16875b]" />
+        <footer className="mt-10 flex items-start gap-3 border-t border-[#dfe6e2] pt-5 text-xs leading-5 text-[#66736d]">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#087a55]" />
           <p>
             Lydoc prépare votre dossier à partir du règlement applicable.
             L’acceptation et le délai de remboursement restent sous la
@@ -666,12 +794,4 @@ export default function CasePage() {
       </div>
     </AppShell>
   );
-}
-
-function readDocumentId(value: unknown): string | null {
-  return value &&
-    typeof value === "object" &&
-    typeof (value as Record<string, unknown>).id === "string"
-    ? ((value as Record<string, unknown>).id as string)
-    : null;
 }

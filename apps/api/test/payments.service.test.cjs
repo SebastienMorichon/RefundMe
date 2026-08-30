@@ -1,6 +1,10 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { checkoutMatchesPayment } = require("../dist/modules/payments/payments.service.js");
+const {
+  checkoutIdempotencyKey,
+  checkoutMatchesPayment,
+  isReusableCheckoutSession,
+} = require("../dist/modules/payments/payments.service.js");
 const { missingCustomerProfileFields } = require("../dist/modules/identity/customer-profile.js");
 
 const payment = {
@@ -24,6 +28,53 @@ test("rejects a checkout with altered payment data", () => {
   assert.equal(checkoutMatchesPayment(payment, { ...session, amount_total: 1 }), false);
   assert.equal(checkoutMatchesPayment(payment, { ...session, id: "cs_test_other" }), false);
   assert.equal(checkoutMatchesPayment(payment, { ...session, metadata: { caseId: "case-2" } }), false);
+});
+
+test("uses a stable Stripe idempotency key for one quote attempt", () => {
+  const input = {
+    caseId: "case-1",
+    amountCents: 799,
+    shipmentUpdatedAt: new Date("2026-08-03T10:00:00.000Z"),
+    paymentUpdatedAt: null,
+  };
+  const first = checkoutIdempotencyKey(input);
+  assert.equal(checkoutIdempotencyKey(input), first);
+  assert.ok(first.length <= 255);
+  assert.notEqual(
+    checkoutIdempotencyKey({
+      ...input,
+      paymentUpdatedAt: new Date("2026-08-03T10:01:00.000Z"),
+    }),
+    first,
+  );
+});
+
+test("reuses only the exact still-open unpaid checkout session", () => {
+  const pendingPayment = { ...payment, status: "PENDING" };
+  const openSession = {
+    ...session,
+    status: "open",
+    payment_status: "unpaid",
+    url: "https://checkout.stripe.com/c/pay/cs_test_valid",
+  };
+  assert.equal(
+    isReusableCheckoutSession(pendingPayment, openSession),
+    true,
+  );
+  assert.equal(
+    isReusableCheckoutSession(pendingPayment, {
+      ...openSession,
+      status: "expired",
+    }),
+    false,
+  );
+  assert.equal(
+    isReusableCheckoutSession(
+      { ...pendingPayment, amountCents: 1 },
+      openSession,
+    ),
+    false,
+  );
 });
 
 test("requires the customer identity and contact details before checkout", () => {

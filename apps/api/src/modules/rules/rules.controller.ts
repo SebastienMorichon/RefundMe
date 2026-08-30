@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { AdminGuard } from "../identity/admin.guard";
 import { AuthGuard } from "../identity/auth.guard";
 import type { AuthenticatedRequest } from "../identity/auth.types";
@@ -13,7 +24,10 @@ type CreateRuleBody = Readonly<{
   constraints?: Record<string, unknown>;
   validFrom?: string;
   validUntil?: string;
+  expectedVersion?: number;
 }>;
+
+type VersionedMutationBody = Readonly<{ expectedVersion?: number }>;
 
 @Controller("admin/rules")
 @UseGuards(AuthGuard, AdminGuard)
@@ -26,8 +40,16 @@ export class RulesController {
   }
 
   @Post("extract/:documentId")
-  async extract(@Param("documentId") documentId: string, @Req() request: AuthenticatedRequest) {
-    return { candidate: await this.rules.extractCandidate(documentId, request.user!.id) };
+  async extract(
+    @Param("documentId") documentId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return {
+      candidate: await this.rules.extractCandidate(
+        documentId,
+        request.user!.id,
+      ),
+    };
   }
 
   @Get(":id")
@@ -36,7 +58,10 @@ export class RulesController {
   }
 
   @Post()
-  async create(@Body() body: CreateRuleBody, @Req() request: AuthenticatedRequest) {
+  async create(
+    @Body() body: CreateRuleBody,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return {
       rule: await this.rules.create({
         actorId: request.user!.id,
@@ -53,10 +78,15 @@ export class RulesController {
   }
 
   @Patch(":id")
-  async update(@Param("id") ruleId: string, @Body() body: CreateRuleBody, @Req() request: AuthenticatedRequest) {
+  async update(
+    @Param("id") ruleId: string,
+    @Body() body: CreateRuleBody,
+    @Req() request: AuthenticatedRequest,
+  ) {
     return {
       rule: await this.rules.update(ruleId, {
         actorId: request.user!.id,
+        expectedVersion: parseExpectedVersion(body.expectedVersion),
         organizerName: body.organizerName ?? "",
         name: body.name ?? "",
         reimbursementCents: body.reimbursementCents ?? -1,
@@ -69,15 +99,40 @@ export class RulesController {
   }
 
   @Patch(":id/approve")
-  async approve(@Param("id") ruleId: string, @Req() request: AuthenticatedRequest) {
-    return { rule: await this.rules.approve(ruleId, request.user!.id) };
+  async approve(
+    @Param("id") ruleId: string,
+    @Body() body: VersionedMutationBody,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return {
+      rule: await this.rules.approve(
+        ruleId,
+        request.user!.id,
+        parseExpectedVersion(body.expectedVersion),
+      ),
+    };
   }
 
   @Delete(":id")
-  async delete(@Param("id") ruleId: string, @Req() request: AuthenticatedRequest) {
-    await this.rules.delete(ruleId, request.user!.id);
+  async delete(
+    @Param("id") ruleId: string,
+    @Body() body: VersionedMutationBody,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.rules.delete(
+      ruleId,
+      request.user!.id,
+      parseExpectedVersion(body.expectedVersion),
+    );
     return { deleted: true };
   }
+}
+
+function parseExpectedVersion(value: unknown): number {
+  if (!Number.isInteger(value) || (value as number) < 1) {
+    throw new BadRequestException("La version du reglement relu est requise.");
+  }
+  return value as number;
 }
 
 function parseDate(value: string): Date {

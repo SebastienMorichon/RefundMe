@@ -4,23 +4,23 @@
 
 :root {
   color-scheme: light;
-  --background: #fbfcfe;
+  --background: #eaf3ee;
   --surface: #ffffff;
-  --surface-soft: #eef3f9;
-  --foreground: #111b35;
-  --muted: #5d6881;
-  --primary: #2457f5;
-  --primary-hover: #1947d8;
-  --navy: #102544;
-  --success: #16875b;
-  --success-soft: #e8f7f0;
-  --warning: #a95d12;
-  --warning-soft: #fff4e7;
-  --coral: #e9654b;
-  --border: #dce3ed;
-  --border-strong: #c8d2df;
-  --shadow-sm: none;
-  --shadow-md: 0 16px 44px rgba(16, 37, 68, 0.1);
+  --surface-soft: #eef6f1;
+  --foreground: #16221d;
+  --muted: #66736d;
+  --primary: #07865e;
+  --primary-hover: #056b4b;
+  --navy: #17211d;
+  --success: #0b8a5e;
+  --success-soft: #e8f6ef;
+  --warning: #9b6319;
+  --warning-soft: #fff6e8;
+  --coral: #d75c47;
+  --border: #dfe8e3;
+  --border-strong: #c4d2cb;
+  --shadow-sm: 0 10px 30px rgba(27, 63, 47, 0.045);
+  --shadow-md: 0 16px 44px rgba(26, 48, 38, 0.1);
 }
 
 * {
@@ -73,17 +73,17 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 summary:focus-visible {
-  outline: 3px solid rgba(36, 87, 245, 0.24);
+  outline: 3px solid rgba(8, 122, 85, 0.22);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #dce6ff;
-  color: #102544;
+  background: #d9f0e5;
+  color: #173a2d;
 }
 
 .page-container {
-  width: min(1180px, calc(100% - 40px));
+  width: min(1240px, calc(100% - 48px));
   margin-inline: auto;
 }
 
@@ -99,13 +99,22 @@ summary:focus-visible {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff;
   padding: 0.7rem 0.85rem;
   color: var(--foreground);
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease;
+}
+
+.field.field-with-leading-icon {
+  padding-left: 2.5rem;
+}
+
+.field.field-with-leading-icon-and-suffix {
+  padding-left: 2.5rem;
+  padding-right: 3.5rem;
 }
 
 .field::placeholder {
@@ -118,7 +127,7 @@ summary:focus-visible {
 
 .field:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(36, 87, 245, 0.1);
+  box-shadow: 0 0 0 3px rgba(8, 122, 85, 0.1);
   outline: none;
 }
 
@@ -129,6 +138,42 @@ summary:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
+.lydoc-hero::after {
+  position: absolute;
+  right: -4rem;
+  bottom: -5rem;
+  width: 16rem;
+  height: 16rem;
+  border: 2px dashed rgba(8, 122, 85, 0.18);
+  border-radius: 999px;
+  content: "";
+}
+
+.lydoc-orb {
+  position: absolute;
+  border-radius: 999px 999px 999px 36%;
+  opacity: 0.48;
+  filter: blur(1px);
+}
+
+.lydoc-orb-coral {
+  top: 4rem;
+  right: 31%;
+  width: 5rem;
+  height: 5rem;
+  background: #ffd7ca;
+  transform: rotate(24deg);
+}
+
+.lydoc-orb-mint {
+  bottom: 3rem;
+  left: -3rem;
+  width: 10rem;
+  height: 10rem;
+  background: #ccebdc;
+  transform: rotate(-18deg);
+}
+
 .primary-button {
   display: inline-flex;
   min-height: 46px;
@@ -136,7 +181,7 @@ summary:focus-visible {
   justify-content: center;
   gap: 0.55rem;
   border: 1px solid var(--primary);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--primary);
   padding: 0.7rem 1.15rem;
   color: #fff;
@@ -164,10 +209,10 @@ summary:focus-visible {
   justify-content: center;
   gap: 0.5rem;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: 8px;
   background: #fff;
   padding: 0.65rem 1rem;
-  color: var(--primary);
+  color: #1e322a;
   font-size: 0.875rem;
   font-weight: 800;
   transition:
@@ -177,7 +222,8 @@ summary:focus-visible {
 
 .secondary-button:hover {
   border-color: var(--primary);
-  background: #f6f8ff;
+  background: #f1f8f4;
+  color: var(--primary);
 }
 
 .secondary-button:disabled {
@@ -223,6 +269,6 @@ summary:focus-visible {
 
 @media (max-width: 640px) {
   .page-container {
-    width: min(100% - 28px, 1180px);
+    width: min(100% - 28px, 1240px);
   }
 }

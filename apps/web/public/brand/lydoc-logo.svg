@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244 64" role="img" aria-labelledby="title desc">
+  <title id="title">Lydoc</title><desc id="desc">Logo horizontal de Lydoc.</desc>
+  <rect width="64" height="64" rx="13" fill="#E8F7F0"/>
+  <path fill="#087A55" d="M13 6h25l12 12v8H39V17H24v21l7 7 15-15h12L31 57 13 39V6Z"/>
+  <path fill="#BFE5D3" d="M38 6v12h12L38 6Z"/>
+  <text x="80" y="45" fill="#17211D" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="800" letter-spacing="-1.2">Lydoc</text>
+</svg>

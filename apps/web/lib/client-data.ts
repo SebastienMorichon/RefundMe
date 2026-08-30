@@ -8,6 +8,21 @@ export type UploadedDocument = {
   mimeType: string;
   sizeBytes: number;
   encrypted: boolean;
+  watermarked: boolean;
+};
+
+export type GameCatalogItem = {
+  id: string;
+  name: string;
+  organizer: string;
+  validFrom: string | null;
+  validUntil: string | null;
+};
+
+export type GameChannel = {
+  id: string;
+  name: string;
+  games: GameCatalogItem[];
 };
 
 export type CaseSummary = {
@@ -79,8 +94,60 @@ export function readDocument(value: unknown): UploadedDocument | null {
         mimeType: document.mimeType,
         sizeBytes: document.sizeBytes,
         encrypted: document.encrypted,
+        watermarked: document.watermarked === true,
       }
     : null;
+}
+
+export function readGameCatalog(value: unknown): GameChannel[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((rawChannel) => {
+    if (!rawChannel || typeof rawChannel !== "object") return [];
+    const channel = rawChannel as Record<string, unknown>;
+    if (
+      typeof channel.id !== "string" ||
+      typeof channel.name !== "string" ||
+      !Array.isArray(channel.games)
+    )
+      return [];
+    const games = channel.games.flatMap((rawGame) => {
+      if (!rawGame || typeof rawGame !== "object") return [];
+      const game = rawGame as Record<string, unknown>;
+      return typeof game.id === "string" &&
+        typeof game.name === "string" &&
+        typeof game.organizer === "string"
+        ? [
+            {
+              id: game.id,
+              name: game.name,
+              organizer: game.organizer,
+              validFrom:
+                typeof game.validFrom === "string" ? game.validFrom : null,
+              validUntil:
+                typeof game.validUntil === "string" ? game.validUntil : null,
+            },
+          ]
+        : [];
+    });
+    return games.length > 0
+      ? [{ id: channel.id, name: channel.name, games }]
+      : [];
+  });
+}
+
+export function gamePeriodLabel(game: GameCatalogItem): string {
+  if (!game.validFrom && !game.validUntil) return "Période non précisée";
+  const formatter = new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  if (game.validFrom && game.validUntil) {
+    return `Du ${formatter.format(new Date(game.validFrom))} au ${formatter.format(new Date(game.validUntil))}`;
+  }
+  return game.validFrom
+    ? `Depuis le ${formatter.format(new Date(game.validFrom))}`
+    : `Jusqu’au ${formatter.format(new Date(game.validUntil!))}`;
 }
 
 export function readCaseSummary(value: unknown): CaseSummary | null {
@@ -140,22 +207,6 @@ export function readList<T>(
     : [];
 }
 
-export function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string")
-        return reject(new Error("Impossible de lire le document."));
-      const separator = reader.result.indexOf(",");
-      if (separator === -1)
-        return reject(new Error("Impossible de préparer le document."));
-      resolve(reader.result.slice(separator + 1));
-    };
-    reader.onerror = () => reject(new Error("Impossible de lire le document."));
-    reader.readAsDataURL(file);
-  });
-}
-
 export function formatCents(cents: number): string {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -200,7 +251,7 @@ export function caseJourneyStep(item: CaseSummary): number {
 }
 
 export function caseProgress(item: CaseSummary): number {
-  return [25, 50, 75, 100, 100][caseJourneyStep(item)] ?? 25;
+  return [20, 40, 60, 80, 100][caseJourneyStep(item)] ?? 20;
 }
 
 export function nextCaseAction(item: CaseSummary): string {
@@ -208,10 +259,10 @@ export function nextCaseAction(item: CaseSummary): string {
   if (item.status === "WAITING_FOR_USER_DOCUMENTS") return "Ajouter les pièces";
   if (item.status === "READY_TO_PAY" && !item.fulfillmentMode)
     return "Vérifier ou choisir";
+  if (item.status === "REFUNDED") return "Voir le remboursement";
   if (item.fulfillmentMode === "SELF_SERVICE") return "Télécharger le dossier";
   if (["PAID", "PRINT_READY", "SENT"].includes(item.status))
     return "Suivre l’envoi";
-  if (item.status === "REFUNDED") return "Voir le remboursement";
   return "Ouvrir le dossier";
 }
 

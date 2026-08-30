@@ -4,30 +4,59 @@ import type { CreateUserInput, UserRepository } from "@lydoc/application";
 import type { User } from "@lydoc/domain";
 import { PrismaService } from "../prisma/prisma.service";
 
+export class RegistrationConflictError extends Error {
+  constructor() {
+    super("Registration conflict");
+    this.name = "RegistrationConflictError";
+  }
+}
+
+export type AuthenticationUser = User &
+  Readonly<{
+    emailVerifiedAt: Date | null;
+    mfaEnabledAt: Date | null;
+  }>;
+
 @Injectable()
 export class PrismaUserRepository implements UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(input: CreateUserInput): Promise<User> {
-    let user;
-
     try {
-      user = await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
           email: input.email,
           passwordHash: input.passwordHash,
-          ...(input.role ? { role: input.role } : {}),
+          role: "USER",
         },
       });
+      return this.toDomain(user);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        throw new Error("Un compte existe deja avec cet email.");
-      }
-
+      if (isUniqueConstraintError(error)) throw new RegistrationConflictError();
       throw error;
     }
+  }
 
-    return this.toDomain(user);
+  async createPendingRegistration(input: {
+    email: string;
+    passwordHash: string;
+  }): Promise<User> {
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: input.email,
+          passwordHash: input.passwordHash,
+          role: "USER",
+          consentVersion: null,
+          consentedAt: null,
+          emailVerifiedAt: null,
+        },
+      });
+      return this.toDomain(user);
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw new RegistrationConflictError();
+      throw error;
+    }
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -35,7 +64,20 @@ export class PrismaUserRepository implements UserRepository {
       where: { email },
     });
 
-    return user ? this.toDomain(user) : null;
+    return user && !user.accountDeletedAt ? this.toDomain(user) : null;
+  }
+
+  async findForAuthentication(
+    email: string,
+  ): Promise<AuthenticationUser | null> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    return user && !user.accountDeletedAt
+      ? {
+          ...this.toDomain(user),
+          emailVerifiedAt: user.emailVerifiedAt,
+          mfaEnabledAt: user.mfaEnabledAt,
+        }
+      : null;
   }
 
   async findById(id: string): Promise<User | null> {
@@ -43,7 +85,7 @@ export class PrismaUserRepository implements UserRepository {
       where: { id },
     });
 
-    return user ? this.toDomain(user) : null;
+    return user && !user.accountDeletedAt ? this.toDomain(user) : null;
   }
 
   private toDomain(user: {
@@ -61,4 +103,11 @@ export class PrismaUserRepository implements UserRepository {
       createdAt: user.createdAt,
     };
   }
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
 }

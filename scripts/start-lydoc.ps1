@@ -68,6 +68,13 @@ $RuntimeRoot = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-r
 Add-PathIfExists (Join-Path $RuntimeRoot "node\bin")
 Add-PathIfExists (Join-Path $RuntimeRoot "bin\fallback")
 Add-PathIfExists (Join-Path $RuntimeRoot "bin\override")
+Add-PathIfExists (Join-Path $RuntimeRoot "native\poppler\Library\bin")
+Add-PathIfExists "C:\Program Files\Tesseract-OCR"
+
+$LocalTesseractData = Join-Path $ProjectRoot "tools\tesseract-data"
+if (Test-Path (Join-Path $LocalTesseractData "fra.traineddata")) {
+  Set-DefaultEnv "TESSDATA_PREFIX" $LocalTesseractData
+}
 
 $EnvLocalPath = Join-Path $ProjectRoot ".env.local"
 if (-not (Test-Path $EnvLocalPath)) {
@@ -80,7 +87,6 @@ APP_URL=http://localhost:3000
 API_URL=http://localhost:3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
 TRUST_PROXY=false
-ADMIN_EMAILS=pjutgg@live.fr
 SESSION_SECRET=local-dev-session-secret-change-me-please
 DOCUMENT_ENCRYPTION_SECRET=local-dev-document-secret-change-me-please
 
@@ -92,7 +98,12 @@ SERVICE_POSTAL_API_KEY=
 SERVICE_POSTAL_ENV=sandbox
 SERVICE_POSTAL_DEFAULT_PRODUCT=vertesuivi
 SERVICE_POSTAL_PRODUCTION_ENABLED=false
+SERVICE_POSTAL_WEBHOOK_SECRET=
 RESEND_API_KEY=re_change_me
+RESEND_FROM_EMAIL=
+DOCUMENT_RETENTION_DAYS=365
+DOCUMENT_DELETION_GRACE_DAYS=7
+DOCUMENT_MIGRATION_BACKUP_DAYS=7
 "@ | Set-Content -Path $EnvLocalPath -Encoding UTF8
   Write-Info "Fichier .env.local cree. Tu peux y mettre tes cles API."
 }
@@ -110,6 +121,9 @@ Set-DefaultEnv "POSTAL_PROVIDER" "mock"
 Set-DefaultEnv "SERVICE_POSTAL_ENV" "sandbox"
 Set-DefaultEnv "SERVICE_POSTAL_DEFAULT_PRODUCT" "vertesuivi"
 Set-DefaultEnv "SERVICE_POSTAL_PRODUCTION_ENABLED" "false"
+Set-DefaultEnv "DOCUMENT_RETENTION_DAYS" "365"
+Set-DefaultEnv "DOCUMENT_DELETION_GRACE_DAYS" "7"
+Set-DefaultEnv "DOCUMENT_MIGRATION_BACKUP_DAYS" "7"
 
 if ($env:STRIPE_SECRET_KEY -eq "sk_test_change_me") {
   Write-Host "    STRIPE_SECRET_KEY utilise encore la valeur de test placeholder. Le paiement sera indisponible." -ForegroundColor Yellow
@@ -126,6 +140,21 @@ if (-not $PnpmCommand) {
   throw "pnpm est introuvable. Verifie que le runtime Codex existe dans $RuntimeRoot."
 }
 Write-Info "pnpm: $(pnpm --version)"
+
+$PdfToPpmCommand = Get-Command pdftoppm -ErrorAction SilentlyContinue
+$TesseractCommand = Get-Command tesseract -ErrorAction SilentlyContinue
+if (-not $PdfToPpmCommand) {
+  throw "pdftoppm est introuvable. Le controle local de confidentialite ne peut pas demarrer."
+}
+if (-not $TesseractCommand) {
+  throw "Tesseract OCR est introuvable. Installe UB-Mannheim.TesseractOCR avant de demarrer Lydoc."
+}
+$TesseractLanguages = (& tesseract --list-langs 2>$null) -join "`n"
+if ($TesseractLanguages -notmatch "(?m)^fra$" -or $TesseractLanguages -notmatch "(?m)^eng$") {
+  throw "Tesseract doit disposer des langues fra et eng pour le controle local de confidentialite."
+}
+Write-Info "pdftoppm: $($PdfToPpmCommand.Source)"
+Write-Info "tesseract: $($TesseractCommand.Source) (fra+eng)"
 
 if ($CheckOnly) {
   Write-Host ""

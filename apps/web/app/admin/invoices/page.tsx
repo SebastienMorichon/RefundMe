@@ -3,6 +3,7 @@
 import { Eye, FileText, LoaderCircle, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "../../../components/app-shell";
+import { apiFetch as fetch } from "../../../lib/api-client";
 
 type SessionUser = { id: string; email: string; role: string };
 type ClientInvoice = {
@@ -91,33 +92,33 @@ export default function AdminInvoicesPage() {
   return (
     <AppShell active="admin-invoices" email={user?.email} isAdmin>
       <div className="mx-auto max-w-[1280px] px-4 py-7 sm:px-7 lg:px-9 lg:py-9">
-        <p className="text-xs font-extrabold uppercase text-[#7a8499]">Administration</p>
-        <h1 className="mt-2 text-3xl font-extrabold text-[#102544]">Factures clients</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#667189]">
+        <p className="text-xs font-extrabold uppercase text-[#7b8781]">Administration</p>
+        <h1 className="mt-2 text-3xl font-extrabold text-[#17211d]">Factures clients</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#66736d]">
           Consultez les factures operateur deposees par les clients et leur etat d'analyse.
         </p>
-        <div className="mt-5 border-l-4 border-[#2457f5] bg-[#eef3ff] p-4 text-sm text-[#344f8d]">{message}</div>
+        <div className="mt-5 border-l-4 border-[#087a55] bg-[#e9f5ef] p-4 text-sm text-[#2f6b53]">{message}</div>
 
         {canViewInvoices ? (
           <section className="surface mt-6 overflow-hidden">
-            <div className="flex items-center justify-between gap-4 border-b border-[#dce3ed] px-5 py-5 sm:px-6">
+            <div className="flex items-center justify-between gap-4 border-b border-[#dce5e0] px-5 py-5 sm:px-6">
               <div>
-                <h2 className="text-lg font-extrabold text-[#102544]">Documents recus</h2>
-                <p className="mt-1 text-sm text-[#667189]">Seules les factures clients sont affichees ici.</p>
+                <h2 className="text-lg font-extrabold text-[#17211d]">Documents recus</h2>
+                <p className="mt-1 text-sm text-[#66736d]">Seules les factures clients sont affichees ici.</p>
               </div>
-              <span className="text-xs font-bold text-[#7a8499]">{invoices.length} document{invoices.length > 1 ? "s" : ""}</span>
+              <span className="text-xs font-bold text-[#7b8781]">{invoices.length} document{invoices.length > 1 ? "s" : ""}</span>
             </div>
 
             {invoices.length === 0 ? (
               <div className="px-5 py-14 text-center">
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-md bg-[#edf2f8] text-[#667189]"><FileText size={23} /></span>
-                <p className="mt-4 text-sm font-extrabold text-[#34415d]">Aucune facture client</p>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-md bg-[#edf2f8] text-[#66736d]"><FileText size={23} /></span>
+                <p className="mt-4 text-sm font-extrabold text-[#526058]">Aucune facture client</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[880px] border-collapse text-left">
                   <thead>
-                    <tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7a8499]">
+                    <tr className="bg-[#f8fafc] text-[11px] font-extrabold uppercase text-[#7b8781]">
                       <th className="px-6 py-3">Facture</th>
                       <th className="px-4 py-3">Client</th>
                       <th className="px-4 py-3">Depot</th>
@@ -131,19 +132,19 @@ export default function AdminInvoicesPage() {
                       <tr key={invoice.id} className="text-sm hover:bg-[#fbfcfe]">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#eef3ff] text-[#2457f5]"><FileText size={17} /></span>
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#e9f5ef] text-[#087a55]"><FileText size={17} /></span>
                             <div className="min-w-0">
-                              <p className="max-w-[260px] truncate font-extrabold text-[#26334f]">{invoice.originalName}</p>
-                              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#7a8499]"><LockKeyhole size={11} /> {formatBytes(invoice.sizeBytes)}</p>
+                              <p className="max-w-[260px] truncate font-extrabold text-[#24332c]">{invoice.originalName}</p>
+                              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-[#7b8781]"><LockKeyhole size={11} /> {formatBytes(invoice.sizeBytes)}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 font-semibold text-[#536078]">{invoice.customerEmail}</td>
-                        <td className="px-4 py-4 text-[#667189]">{formatDate(invoice.uploadedAt)}</td>
+                        <td className="px-4 py-4 font-semibold text-[#59665f]">{invoice.customerEmail}</td>
+                        <td className="px-4 py-4 text-[#66736d]">{formatDate(invoice.uploadedAt)}</td>
                         <td className="px-4 py-4"><StatusBadge status={invoice.status} /></td>
-                        <td className="px-4 py-4 text-[#667189]">{invoice.cases.length ? `${invoice.cases.length} dossier${invoice.cases.length > 1 ? "s" : ""}` : "Aucun"}</td>
+                        <td className="px-4 py-4 text-[#66736d]">{invoice.cases.length ? `${invoice.cases.length} dossier${invoice.cases.length > 1 ? "s" : ""}` : "Aucun"}</td>
                         <td className="px-6 py-4 text-right">
-                          <button type="button" onClick={() => void viewInvoice(invoice)} disabled={openingId !== null} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#cfd8e6] bg-white px-3 text-xs font-extrabold text-[#2457f5] hover:bg-[#eef3ff] disabled:opacity-50">
+                          <button type="button" onClick={() => void viewInvoice(invoice)} disabled={openingId !== null} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#cfd8e6] bg-white px-3 text-xs font-extrabold text-[#087a55] hover:bg-[#e9f5ef] disabled:opacity-50">
                             {openingId === invoice.id ? <LoaderCircle className="animate-spin" size={15} /> : <Eye size={15} />} Consulter
                           </button>
                         </td>

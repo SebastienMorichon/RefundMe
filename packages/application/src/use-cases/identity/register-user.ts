@@ -1,4 +1,4 @@
-import { normalizeEmail, type User, type UserRole } from "@lydoc/domain";
+import { normalizeEmail, type User } from "@lydoc/domain";
 import type { PasswordHasher } from "../../ports/password-hasher";
 import type { UserRepository } from "../../ports/user-repository";
 
@@ -8,11 +8,18 @@ export class RegisterUser {
     private readonly passwordHasher: PasswordHasher,
   ) {}
 
-  async execute(input: { email: string; password: string; role?: UserRole }): Promise<User> {
+  async execute(input: { email: string; password: string }): Promise<User> {
+    if (input.email.length > 254) {
+      throw new Error("Informations d'inscription invalides.");
+    }
     const email = normalizeEmail(input.email);
 
-    if (input.password.length < 10) {
-      throw new Error("Le mot de passe doit contenir au moins 10 caracteres.");
+    if (
+      input.password.length < 12 ||
+      input.password.length > 256 ||
+      new TextEncoder().encode(input.password).byteLength > 1_024
+    ) {
+      throw new Error("Le mot de passe doit contenir entre 12 et 256 caracteres.");
     }
 
     const existingUser = await this.users.findByEmail(email);
@@ -24,7 +31,6 @@ export class RegisterUser {
     return this.users.create({
       email,
       passwordHash: await this.passwordHasher.hash(input.password),
-      ...(input.role ? { role: input.role } : {}),
     });
   }
 }

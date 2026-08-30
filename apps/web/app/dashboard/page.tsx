@@ -1,31 +1,40 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, FileSearch, RefreshCw } from "lucide-react";
+import {
+  ArrowRight,
+  ChevronRight,
+  CircleDollarSign,
+  FileCheck2,
+  Flag,
+  FolderOpen,
+  RefreshCw,
+  Send,
+  Upload,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppShell } from "../../components/app-shell";
-import { JourneySteps, LoadingState } from "../../components/client-ui";
+import { LoadingState, formatStatus } from "../../components/client-ui";
+import { apiFetch as fetch } from "../../lib/api-client";
 import {
   apiUrl,
-  caseJourneyStep,
   formatCents,
-  isFinishedCase,
   readCaseSummary,
-  readDocument,
   readJson,
   readList,
   readUser,
   type CaseSummary,
-  type UploadedDocument,
   type User,
 } from "../../lib/client-data";
+import { recoveryStats } from "../../lib/gamification";
 
 type LoadState = "loading" | "ready" | "offline";
+type MetricTone = "mint" | "coral" | "amber" | "rose";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
@@ -36,27 +45,22 @@ export default function DashboardPage() {
   async function loadDashboard() {
     setLoadState("loading");
     try {
-      const [sessionResponse, documentsResponse, casesResponse] =
-        await Promise.all([
-          fetch(`${apiUrl}/auth/me`, { credentials: "include" }),
-          fetch(`${apiUrl}/documents`, { credentials: "include" }),
-          fetch(`${apiUrl}/cases`, { credentials: "include" }),
-        ]);
+      const [sessionResponse, casesResponse] = await Promise.all([
+        fetch(`${apiUrl}/auth/me`, { credentials: "include" }),
+        fetch(`${apiUrl}/cases`, { credentials: "include" }),
+      ]);
       if (sessionResponse.status === 401 || sessionResponse.status === 404) {
         router.replace("/connexion");
         return;
       }
 
-      const [sessionPayload, documentsPayload, casesPayload] =
-        await Promise.all([
-          readJson(sessionResponse),
-          readJson(documentsResponse),
-          readJson(casesResponse),
-        ]);
+      const [sessionPayload, casesPayload] = await Promise.all([
+        readJson(sessionResponse),
+        readJson(casesResponse),
+      ]);
       const sessionUser = readUser(sessionPayload.user);
       if (
         !sessionResponse.ok ||
-        !documentsResponse.ok ||
         !casesResponse.ok ||
         !sessionUser
       ) {
@@ -64,7 +68,6 @@ export default function DashboardPage() {
       }
 
       setUser(sessionUser);
-      setDocuments(readList(documentsPayload.documents, readDocument));
       setCases(readList(casesPayload.cases, readCaseSummary));
       setLoadState("ready");
     } catch {
@@ -72,27 +75,24 @@ export default function DashboardPage() {
     }
   }
 
-  if (loadState === "loading")
-    return <LoadingState label="Ouverture de votre espace..." />;
+  if (loadState === "loading") {
+    return <LoadingState label="Ouverture de votre tableau de bord..." />;
+  }
 
   if (loadState === "offline") {
     return (
-      <div className="grid min-h-screen place-items-center bg-[#fbfcfe] px-5">
+      <div className="grid min-h-screen place-items-center bg-[#eef5f1] px-5">
         <div className="max-w-md text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#fff0ec] text-[#c6503a]">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#fff0eb] text-[#d75c47]">
             <RefreshCw size={22} />
           </span>
-          <h1 className="mt-5 text-2xl font-extrabold text-[#102544]">
+          <h1 className="mt-5 text-2xl font-extrabold text-[#16221d]">
             Le service Lydoc est indisponible.
           </h1>
-          <p className="mt-3 text-sm leading-6 text-[#667189]">
+          <p className="mt-3 text-sm leading-6 text-[#66736d]">
             Vérifiez que l’API est démarrée, puis relancez le chargement.
           </p>
-          <button
-            type="button"
-            onClick={loadDashboard}
-            className="primary-button mt-6"
-          >
+          <button type="button" onClick={loadDashboard} className="primary-button mt-6">
             <RefreshCw size={17} /> Réessayer
           </button>
         </div>
@@ -100,227 +100,216 @@ export default function DashboardPage() {
     );
   }
 
-  const activeCases = cases.filter((item) => !isFinishedCase(item));
-  const primaryCase = activeCases[0] ?? cases[0] ?? null;
-  const recoverableCents = activeCases.reduce(
-    (total, item) => total + item.estimatedRecoverableCents,
-    0,
+  const stats = recoveryStats(cases);
+  const activeCases = cases.filter(
+    (item) => !["REFUNDED", "REJECTED", "CANCELLED"].includes(item.status),
   );
-  const refundedCents = cases
-    .filter((item) => item.status === "REFUNDED")
-    .reduce((total, item) => total + item.estimatedRecoverableCents, 0);
-  const presentation = dashboardPresentation(primaryCase);
-  const firstName = user?.email.split("@")[0]?.split(/[._-]/)[0] ?? "vous";
+  const sentCases = cases.filter((item) =>
+    ["SENT", "REFUNDED"].includes(item.status),
+  ).length;
+  const attentionCases = cases.filter((item) =>
+    ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(item.status),
+  ).length;
+  const recentCases = [...cases]
+    .sort((left, right) => dateValue(right.createdAt) - dateValue(left.createdAt))
+    .slice(0, 5);
 
   return (
-    <AppShell
-      active="dashboard"
-      email={user?.email}
-      isAdmin={user?.role === "ADMIN"}
-    >
-      <div className="page-container max-w-[1120px] py-10 sm:py-14">
-        <header>
-          <p className="text-sm font-semibold capitalize text-[#667189]">
-            Bonjour {firstName}
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold text-[#101a34] sm:text-4xl">
-            Voici l’essentiel.
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#667189]">
-            Lydoc vous montre uniquement ce qui mérite votre attention
-            maintenant.
-          </p>
-        </header>
-
-        <section
-          className="surface mt-9 overflow-hidden"
-          aria-label="Prochaine étape"
-        >
-          <div className="px-5 py-8 text-center sm:px-10 sm:py-10">
-            <span
-              className={`mx-auto grid h-11 w-11 place-items-center rounded-full ${primaryCase ? "bg-[#eaf8f1] text-[#16875b]" : "bg-[#edf2ff] text-[#2457f5]"}`}
-            >
-              {primaryCase ? (
-                <CheckCircle2 size={22} />
-              ) : (
-                <FileSearch size={21} />
-              )}
-            </span>
-            <p className="mt-4 text-xs font-extrabold uppercase text-[#6f7b92]">
-              {presentation.eyebrow}
-            </p>
-            <h2 className="mx-auto mt-3 max-w-3xl text-2xl font-extrabold text-[#101a34] sm:text-3xl">
-              {presentation.title}
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-[#667189]">
-              {presentation.description}
+    <AppShell active="dashboard" email={user?.email} isAdmin={user?.role === "ADMIN"}>
+      <div className="mx-auto w-full max-w-[1220px] px-4 py-7 sm:px-7 lg:px-8 lg:py-8">
+        <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-[26px] font-extrabold text-[#16221d] sm:text-[30px]">
+              Tableau de bord
+            </h1>
+            <p className="mt-1 text-sm text-[#68756f]">
+              Voici l’avancement de vos dossiers.
             </p>
           </div>
+          <a href="/documents?new=1" className="primary-button min-h-11 self-start px-5 sm:self-auto">
+            Analyser une facture <Upload size={16} />
+          </a>
+        </header>
 
-          {primaryCase ? (
-            <div className="border-t border-[#e2e7ee] px-5 py-7 sm:px-10">
-              <JourneySteps current={caseJourneyStep(primaryCase)} />
-            </div>
-          ) : null}
+        <section className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Indicateurs principaux">
+          <DashboardMetric
+            label="Dossiers en cours"
+            value={String(activeCases.length)}
+            detail="Voir mes dossiers"
+            href="/cases"
+            icon={FolderOpen}
+            tone="mint"
+          />
+          <DashboardMetric
+            label="Montants identifiés"
+            value={formatCents(stats.detectedCents)}
+            detail="Voir les analyses"
+            href="/documents"
+            icon={CircleDollarSign}
+            tone="coral"
+          />
+          <DashboardMetric
+            label="Dossiers envoyés"
+            value={String(sentCases)}
+            detail="Voir l’historique"
+            href="/cases"
+            icon={Send}
+            tone="amber"
+          />
+          <DashboardMetric
+            label="À surveiller"
+            value={String(attentionCases)}
+            detail="Voir les alertes"
+            href="/notifications"
+            icon={Flag}
+            tone="rose"
+          />
+        </section>
 
-          <div className="border-t border-[#e2e7ee] px-5 py-8 text-center sm:px-10">
-            {primaryCase ? (
-              <>
-                <p className="text-sm font-semibold text-[#667189]">
-                  {primaryCase.rule?.name ?? "Dossier de remboursement"} ·{" "}
-                  {formatCents(primaryCase.estimatedRecoverableCents)}
-                </p>
-                <h3 className="mt-2 text-xl font-extrabold text-[#101a34]">
-                  {presentation.question}
-                </h3>
-              </>
-            ) : (
-              <h3 className="text-xl font-extrabold text-[#101a34]">
-                Prêt à vérifier votre première facture ?
-              </h3>
-            )}
-            <a
-              href={presentation.href}
-              className="primary-button mt-6 min-w-[220px]"
-            >
-              {presentation.action} <ArrowRight size={17} />
+        <section className="mt-8" aria-labelledby="recent-cases-title">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h2 id="recent-cases-title" className="text-lg font-extrabold text-[#1a2822]">
+              Mes dossiers récents
+            </h2>
+            <a href="/cases" className="inline-flex items-center gap-1.5 text-xs font-bold text-[#087a55] hover:text-[#056846]">
+              Voir tous mes dossiers <ArrowRight size={14} />
             </a>
           </div>
 
-          <div className="grid border-t border-[#e2e7ee] sm:grid-cols-3 sm:divide-x sm:divide-[#e2e7ee]">
-            <Summary value={formatCents(recoverableCents)} label="identifiés" />
-            <Summary
-              value={String(activeCases.length)}
-              label={
-                activeCases.length > 1
-                  ? "dossiers en cours"
-                  : "dossier en cours"
-              }
-            />
-            <Summary
-              value={formatCents(refundedCents)}
-              label="déjà reçus"
-              positive={refundedCents > 0}
-            />
+          <div className="overflow-hidden rounded-lg border border-[#dfe8e3] bg-white shadow-[0_12px_36px_rgba(27,63,47,0.05)]">
+            {recentCases.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <span className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-[#e7f5ee] text-[#087a55]">
+                  <FileCheck2 size={21} />
+                </span>
+                <h3 className="mt-4 text-sm font-extrabold text-[#1b2a23]">Aucun dossier pour le moment</h3>
+                <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#738078]">
+                  Analysez une facture pour détecter vos premiers frais remboursables.
+                </p>
+                <a href="/documents?new=1" className="primary-button mt-5 min-h-10 px-4 text-xs">
+                  Analyser une facture <Upload size={14} />
+                </a>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#e8eeeb]">
+                {recentCases.map((item) => (
+                  <RecentCaseRow key={item.id} item={item} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
-
-        <div className="mt-7 flex flex-col items-center justify-center gap-3 text-sm sm:flex-row sm:gap-7">
-          <a
-            href="/cases"
-            className="font-extrabold text-[#2457f5] hover:text-[#1947d8]"
-          >
-            Voir mes dossiers
-          </a>
-          <span className="hidden h-1 w-1 rounded-full bg-[#b8c1cf] sm:block" />
-          <a
-            href="/documents"
-            className="font-semibold text-[#667189] hover:text-[#2457f5]"
-          >
-            Consulter mes {documents.length} document
-            {documents.length > 1 ? "s" : ""}
-          </a>
-        </div>
       </div>
     </AppShell>
   );
 }
 
-function Summary({
-  value,
+function DashboardMetric({
   label,
-  positive = false,
+  value,
+  detail,
+  href,
+  icon: Icon,
+  tone,
 }: {
-  value: string;
   label: string;
-  positive?: boolean;
+  value: string;
+  detail: string;
+  href: string;
+  icon: LucideIcon;
+  tone: MetricTone;
 }) {
+  const styles: Record<MetricTone, { background: string; color: string }> = {
+    mint: { background: "bg-[#ddf1e7]", color: "text-[#16865e]" },
+    coral: { background: "bg-[#ffede8]", color: "text-[#f06d52]" },
+    amber: { background: "bg-[#fff5da]", color: "text-[#f0a600]" },
+    rose: { background: "bg-[#fff0eb]", color: "text-[#e9674d]" },
+  };
+  const style = styles[tone];
+
   return (
-    <div className="px-5 py-5 text-center sm:py-6">
-      <p
-        className={`text-xl font-extrabold ${positive ? "text-[#16875b]" : "text-[#101a34]"}`}
-      >
+    <a
+      href={href}
+      className="group relative min-h-[132px] overflow-hidden rounded-lg border border-[#dfe8e3] bg-white p-4 shadow-[0_10px_30px_rgba(27,63,47,0.045)] transition-transform hover:-translate-y-0.5 hover:border-[#bcd1c7]"
+    >
+      <p className="text-xs font-semibold text-[#26352e]">{label}</p>
+      <p className="mt-2 max-w-[75%] truncate text-[24px] font-extrabold leading-none text-[#14221c]" title={value}>
         {value}
       </p>
-      <p className="mt-1 text-xs font-semibold text-[#7a8499]">{label}</p>
-    </div>
+      <span className="mt-4 inline-flex items-center gap-1 text-[11px] font-bold text-[#087a55]">
+        {detail} <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+      </span>
+      <span className={`absolute bottom-4 right-4 grid h-10 w-10 place-items-center rounded-lg ${style.background} ${style.color}`}>
+        <Icon size={22} strokeWidth={1.8} />
+      </span>
+    </a>
   );
 }
 
-function dashboardPresentation(item: CaseSummary | null) {
-  if (!item) {
-    return {
-      eyebrow: "Commencer",
-      title: "Une facture suffit pour savoir.",
-      description:
-        "Importez votre facture opérateur. L’analyse est gratuite et ne vous engage à rien.",
-      question: "",
-      action: "Analyser une facture",
-      href: "/documents?new=1",
-    };
-  }
-  if (item.status === "REFUNDED") {
-    return {
-      eyebrow: "Remboursement reçu",
-      title: "Votre remboursement est arrivé.",
-      description:
-        "Ce dossier est terminé. Vous pouvez retrouver son historique à tout moment.",
-      question: "Consulter le dossier terminé",
-      action: "Voir le dossier",
-      href: `/cases/${item.id}`,
-    };
-  }
-  if (item.fulfillmentMode === "SELF_SERVICE") {
-    return {
-      eyebrow: "Dossier complet",
-      title: "Votre dossier gratuit est prêt.",
-      description:
-        "Téléchargez le PDF complet, imprimez-le puis envoyez-le à l’organisateur.",
-      question: "Télécharger maintenant ?",
-      action: "Ouvrir mon dossier",
-      href: `/cases/${item.id}`,
-    };
-  }
-  if (item.fulfillmentMode === "MANAGED_POSTAL") {
-    return {
-      eyebrow: "Envoi pris en charge",
-      title: "Lydoc s’occupe de votre courrier.",
-      description:
-        "Retrouvez l’impression, l’acheminement et le suivi postal au même endroit.",
-      question: "Voir où en est l’envoi",
-      action: "Suivre mon dossier",
-      href: `/cases/${item.id}`,
-    };
-  }
-  if (item.status === "WAITING_FOR_USER_DOCUMENTS") {
-    return {
-      eyebrow: "Action requise",
-      title: "Une pièce suffit pour avancer.",
-      description:
-        "Le règlement a été lu. Lydoc vous demande uniquement les justificatifs réellement nécessaires.",
-      question: "Compléter le dossier maintenant ?",
-      action: "Ajouter la pièce",
-      href: `/cases/${item.id}`,
-    };
-  }
-  if (item.status === "READY_TO_PAY") {
-    return {
-      eyebrow: "Dossier prêt",
-      title: "Votre demande est presque terminée.",
-      description:
-        "Vérifiez les informations puis choisissez entre le téléchargement gratuit et l’envoi pris en charge.",
-      question: "Comment souhaitez-vous poursuivre ?",
-      action: "Faire mon choix",
-      href: `/cases/${item.id}`,
-    };
-  }
-  return {
-    eyebrow: "Remboursement détecté",
-    title: "Nous avons trouvé une demande possible.",
-    description:
-      "Le règlement correspondant est identifié. Lancez la préparation pour connaître les pièces utiles.",
-    question: "Préparer le dossier maintenant ?",
-    action: "Commencer mon dossier",
-    href: `/cases/${item.id}`,
-  };
+function RecentCaseRow({ item }: { item: CaseSummary }) {
+  return (
+    <a
+      href={`/cases/${item.id}`}
+      className="grid min-h-[72px] grid-cols-[minmax(0,1fr)_auto_18px] items-center gap-3 px-4 transition-colors hover:bg-[#f7faf8] sm:grid-cols-[minmax(0,1.6fr)_132px_112px_110px_18px] sm:px-5"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#e5f4ec] text-[#087a55]">
+          <FileCheck2 size={18} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-[13px] font-bold text-[#23322b]">
+            {item.rule?.name ?? "Dossier de remboursement"}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] text-[#728078]">
+            {item.rule?.organizer ?? "Organisateur à confirmer"}
+            <span className="sm:hidden"> · {formatCents(item.estimatedRecoverableCents)}</span>
+          </span>
+        </span>
+      </span>
+      <CaseStatus status={item.status} />
+      <time className="hidden text-xs text-[#65746c] sm:block" dateTime={item.createdAt ?? undefined}>
+        {formatDate(item.createdAt)}
+      </time>
+      <strong className="hidden text-right text-sm text-[#17251f] sm:block">
+        {formatCents(item.estimatedRecoverableCents)}
+      </strong>
+      <ChevronRight size={17} className="text-[#4d7665]" />
+    </a>
+  );
+}
+
+function CaseStatus({ status }: { status: string }) {
+  const success = ["SENT", "REFUNDED", "GENERATED", "PAID", "PRINT_READY"].includes(status);
+  const ready = ["READY_TO_PAY"].includes(status);
+  const error = ["REJECTED", "CANCELLED"].includes(status);
+  const classes = error
+    ? "bg-[#fff0eb] text-[#bd4e39]"
+    : success
+      ? "bg-[#e7f5ee] text-[#087a55]"
+      : ready
+        ? "bg-[#fff4d9] text-[#a56809]"
+        : "bg-[#eef4f1] text-[#527064]";
+
+  return (
+    <span className={`inline-flex min-h-7 items-center justify-center whitespace-nowrap rounded-full px-3 text-[10px] font-bold ${classes}`}>
+      {formatStatus(status)}
+    </span>
+  );
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function dateValue(value: string | null): number {
+  if (!value) return 0;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
