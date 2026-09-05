@@ -1,0 +1,18 @@
+title = "Lydoc Gitleaks configuration"
+
+# These values are deterministic placeholders used for timing-safe password
+# verification and operator documentation. Pair each exact value with its
+# exact path so that no broader secret pattern is ignored.
+[[allowlists]]
+description = "Timing-safe dummy scrypt hash"
+condition = "AND"
+regexTarget = "match"
+paths = ['''apps/api/src/modules/identity/node-password-hasher\.service\.ts''']
+regexes = ['''scrypt:lydoc-auth-dummy-v1:QsITvUQTazIvvnFRKD7-NYePJ46_RmZ4RhJaJvoNhXXP7AEoU28WHZoa19uPq_o0KRTNAvM4t7A6pf4zAHtwFg''']
+
+[[allowlists]]
+description = "Documented MFA placeholder"
+condition = "AND"
+regexTarget = "match"
+paths = ['''deploy/production\.env\.example''']
+regexes = ['''replace-with-a-dedicated-secret-of-at-least-32-characters''']

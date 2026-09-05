@@ -8,12 +8,14 @@ overrides:
   "fast-uri@3.1.4": "3.1.5"
   "js-yaml@4.3.0": "4.3.1"
   "multer@2.1.1": "2.2.0"
-  "nanoid@3.3.16": "3.3.17"
+  "deepmerge-ts@7.1.5": "8.0.0"
+  "nanoid@3.3.16": "3.3.18"
   "postcss@8.4.31": "8.5.25"
   "postcss@8.5.16": "8.5.25"
   "sharp@0.34.5": "0.35.3"
+  "qs@6.15.3": "6.16.0"
 allowBuilds:
-  '@prisma/client': true
-  '@prisma/engines': true
+  "@prisma/client": true
+  "@prisma/engines": true
   prisma: true
   sharp: true
