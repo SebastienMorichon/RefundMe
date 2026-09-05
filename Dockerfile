@@ -52,7 +52,8 @@ RUN pnpm --filter @lydoc/web build
 
 FROM workspace AS migrate
 ENV NODE_ENV=production
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
       /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx \
       /usr/local/bin/yarn /usr/local/bin/yarnpkg
@@ -62,7 +63,8 @@ CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy", "--schem
 FROM ${NODE_IMAGE} AS runtime-base
 # Production only executes `node`; package-manager CLIs enlarge the attack
 # surface and have no purpose in either immutable runtime image.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx \
       /usr/local/bin/corepack /usr/local/bin/pnpm /usr/local/bin/pnpx \
       /usr/local/bin/yarn /usr/local/bin/yarnpkg
