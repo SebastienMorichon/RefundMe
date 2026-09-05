@@ -1,4 +1,4 @@
-ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
+ARG NODE_IMAGE=node:22-alpine3.23@sha256:46825fbbd4e996a78b7a2cdc08d75e38a5a505bdab95dcda55605359bf124bc6
 
 FROM ${NODE_IMAGE} AS workspace
 
@@ -72,10 +72,10 @@ RUN apk upgrade --no-cache \
 FROM runtime-base AS api
 RUN apk add --no-cache \
     fontconfig \
-    poppler-utils=25.12.0-r1 \
-    tesseract-ocr=5.5.2-r0 \
-    tesseract-ocr-data-eng=5.5.2-r0 \
-    tesseract-ocr-data-fra=5.5.2-r0 \
+    poppler-utils=25.12.0-r0 \
+    tesseract-ocr=5.5.1-r0 \
+    tesseract-ocr-data-eng=5.5.1-r0 \
+    tesseract-ocr-data-fra=5.5.1-r0 \
     ttf-dejavu
 WORKDIR /app
 ENV NODE_ENV=production
