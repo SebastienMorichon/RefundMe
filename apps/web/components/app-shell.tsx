@@ -17,6 +17,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch as fetch } from "../lib/api-client";
+import { documentsPageEnabled } from "../lib/feature-flags";
 import { Brand } from "./brand";
 import { CaseFolderIcon, ProgressIcon, type LydocIcon } from "./lydoc-icons";
 
@@ -45,9 +46,14 @@ type NavigationItem = {
   icon: LucideIcon | LydocIcon;
 };
 
-const navigation: NavigationItem[] = [
+const navigationItems: NavigationItem[] = [
   { id: "dashboard", href: "/dashboard", label: "Tableau de bord", icon: Home },
-  { id: "documents", href: "/documents", label: "Mes factures", icon: FileText },
+  {
+    id: "documents",
+    href: "/documents",
+    label: "Mes factures",
+    icon: FileText,
+  },
   { id: "cases", href: "/cases", label: "Mes dossiers", icon: CaseFolderIcon },
   {
     id: "achievements",
@@ -58,6 +64,10 @@ const navigation: NavigationItem[] = [
   { id: "notifications", href: "/notifications", label: "Alertes", icon: Bell },
   { id: "profile", href: "/profile", label: "Paramètres", icon: Settings },
 ];
+
+const navigation = navigationItems.filter(
+  (item) => documentsPageEnabled || item.id !== "documents",
+);
 
 export function AppShell({
   children,
@@ -78,8 +88,7 @@ export function AppShell({
     setLogoutPending(true);
     setLogoutError("");
     try {
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
       const response = await fetch(`${apiUrl}/auth/logout`, {
         method: "POST",
         credentials: "include",
@@ -101,7 +110,8 @@ export function AppShell({
       .then((response) => (response.ok ? response.json() : null))
       .then((payload: unknown) => {
         if (!payload || typeof payload !== "object") return;
-        const notifications = (payload as Record<string, unknown>).notifications;
+        const notifications = (payload as Record<string, unknown>)
+          .notifications;
         setHasUnreadNotifications(
           Array.isArray(notifications) &&
             notifications.some(
@@ -169,7 +179,11 @@ export function AppShell({
     <div className="min-h-screen bg-[#eaf3ee] text-[#16221d]">
       <aside className="fixed inset-y-3 left-3 z-40 hidden w-[216px] flex-col overflow-hidden rounded-[18px] bg-[#063b2f] text-white shadow-[0_24px_64px_rgba(6,59,47,0.22)] lg:flex">
         <div className="px-5 pb-5 pt-6">
-          <a href="/dashboard" aria-label="Accueil Lydoc" className="inline-flex">
+          <a
+            href="/dashboard"
+            aria-label="Accueil Lydoc"
+            className="inline-flex"
+          >
             <Brand inverse />
           </a>
           <p className="ml-[42px] mt-0.5 text-[10px] font-medium text-white/60">
@@ -177,7 +191,10 @@ export function AppShell({
           </p>
         </div>
 
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-4" aria-label="Navigation principale">
+        <nav
+          className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+          aria-label="Navigation principale"
+        >
           <NavigationLinks active={active} />
 
           {isAdmin ? (
@@ -186,15 +203,30 @@ export function AppShell({
                 Administration
               </p>
               <SidebarLink
-                item={{ id: "admin", href: "/admin/rules", label: "Règlements", icon: ShieldCheck }}
+                item={{
+                  id: "admin",
+                  href: "/admin/rules",
+                  label: "Règlements",
+                  icon: ShieldCheck,
+                }}
                 active={active === "admin"}
               />
               <SidebarLink
-                item={{ id: "admin-invoices", href: "/admin/invoices", label: "Factures clients", icon: FileText }}
+                item={{
+                  id: "admin-invoices",
+                  href: "/admin/invoices",
+                  label: "Factures clients",
+                  icon: FileText,
+                }}
                 active={active === "admin-invoices"}
               />
               <SidebarLink
-                item={{ id: "admin-pricing", href: "/admin/pricing", label: "Tarification", icon: ReceiptText }}
+                item={{
+                  id: "admin-pricing",
+                  href: "/admin/pricing",
+                  label: "Tarification",
+                  icon: ReceiptText,
+                }}
                 active={active === "admin-pricing"}
               />
             </div>
@@ -208,7 +240,9 @@ export function AppShell({
           >
             <span>
               <span className="block text-xs font-bold">Besoin d’aide ?</span>
-              <span className="mt-1 block text-[10px] text-white/60">Nous sommes là.</span>
+              <span className="mt-1 block text-[10px] text-white/60">
+                Nous sommes là.
+              </span>
             </span>
             <MessageCircleMore size={23} className="shrink-0 text-[#31d39b]" />
           </a>
@@ -224,7 +258,9 @@ export function AppShell({
               <span className="block truncate text-[11px] font-bold text-white/90">
                 {email ?? "Mon compte"}
               </span>
-              <span className="mt-0.5 block text-[9px] text-white/45">Compte sécurisé</span>
+              <span className="mt-0.5 block text-[9px] text-white/45">
+                Compte sécurisé
+              </span>
             </span>
           </a>
           <button
@@ -313,19 +349,57 @@ export function AppShell({
                 <X size={20} />
               </button>
             </div>
-            <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-5" aria-label="Navigation mobile">
-              <NavigationLinks active={active} onNavigate={() => setMobileOpen(false)} />
+            <nav
+              className="min-h-0 flex-1 overflow-y-auto px-3 py-5"
+              aria-label="Navigation mobile"
+            >
+              <NavigationLinks
+                active={active}
+                onNavigate={() => setMobileOpen(false)}
+              />
               {isAdmin ? (
                 <div className="mt-5 border-t border-white/10 pt-5">
-                  <p className="px-3 pb-2 text-[10px] font-bold uppercase text-white/45">Administration</p>
-                  <SidebarLink item={{ id: "admin", href: "/admin/rules", label: "Règlements", icon: ShieldCheck }} active={active === "admin"} onNavigate={() => setMobileOpen(false)} />
-                  <SidebarLink item={{ id: "admin-invoices", href: "/admin/invoices", label: "Factures clients", icon: FileText }} active={active === "admin-invoices"} onNavigate={() => setMobileOpen(false)} />
-                  <SidebarLink item={{ id: "admin-pricing", href: "/admin/pricing", label: "Tarification", icon: ReceiptText }} active={active === "admin-pricing"} onNavigate={() => setMobileOpen(false)} />
+                  <p className="px-3 pb-2 text-[10px] font-bold uppercase text-white/45">
+                    Administration
+                  </p>
+                  <SidebarLink
+                    item={{
+                      id: "admin",
+                      href: "/admin/rules",
+                      label: "Règlements",
+                      icon: ShieldCheck,
+                    }}
+                    active={active === "admin"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                  <SidebarLink
+                    item={{
+                      id: "admin-invoices",
+                      href: "/admin/invoices",
+                      label: "Factures clients",
+                      icon: FileText,
+                    }}
+                    active={active === "admin-invoices"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                  <SidebarLink
+                    item={{
+                      id: "admin-pricing",
+                      href: "/admin/pricing",
+                      label: "Tarification",
+                      icon: ReceiptText,
+                    }}
+                    active={active === "admin-pricing"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                 </div>
               ) : null}
             </nav>
             <div className="border-t border-white/10 p-3">
-              <a href="/faq" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white">
+              <a
+                href="/faq"
+                className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold text-white/70 hover:bg-white/10 hover:text-white"
+              >
                 <CircleHelp size={17} /> Aide
               </a>
               <button
@@ -360,7 +434,12 @@ function NavigationLinks({
   return (
     <div className="grid gap-1">
       {navigation.map((item) => (
-        <SidebarLink key={item.id} item={item} active={active === item.id} onNavigate={onNavigate} />
+        <SidebarLink
+          key={item.id}
+          item={item}
+          active={active === item.id}
+          onNavigate={onNavigate}
+        />
       ))}
     </div>
   );

@@ -36,6 +36,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       NEXT_PUBLIC_API_URL: http://127.0.0.1:3001
       NEXT_PUBLIC_MANAGED_POSTAL_ENABLED: "false"
+      NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED: "false"
       SECURITY_CONTACT_EMAIL: security@example.test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -142,6 +143,7 @@ jobs:
           --build-arg NEXT_PUBLIC_API_URL=https://api.example.invalid
           --build-arg NEXT_PUBLIC_APP_URL=https://app.example.invalid
           --build-arg NEXT_PUBLIC_MANAGED_POSTAL_ENABLED=false
+          --build-arg NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false
           --build-arg SECURITY_CONTACT_EMAIL=security@example.invalid
           .
       - name: Build web runtime image
@@ -156,6 +158,7 @@ jobs:
             NEXT_PUBLIC_API_URL=https://api.example.invalid
             NEXT_PUBLIC_APP_URL=https://app.example.invalid
             NEXT_PUBLIC_MANAGED_POSTAL_ENABLED=false
+            NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false
             SECURITY_CONTACT_EMAIL=security@example.invalid
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web

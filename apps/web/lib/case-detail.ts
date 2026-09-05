@@ -192,6 +192,11 @@ export function caseNotice(
       message: "Remboursement confirmé. Ce dossier est terminé.",
       tone: "success",
     };
+  if (administrativeCase.status === "SENT")
+    return {
+      message: "Envoi confirmé. Votre demande est en attente de remboursement.",
+      tone: "success",
+    };
   if (administrativeCase.payment?.status === "PAID") {
     if (administrativeCase.postalShipment?.status === "DELIVERED")
       return {

@@ -1008,6 +1008,61 @@ export class EligibilityService {
     return this.presentCaseDetail(updatedCase);
   }
 
+  async markSent(caseId: string, ownerId: string) {
+    const updatedCase = await this.prisma.$transaction(async (transaction) => {
+      const administrativeCase = await this.lockAndFindOwnedCase(
+        transaction,
+        caseId,
+        ownerId,
+      );
+      if (administrativeCase.status === "SENT") return administrativeCase;
+      if (
+        administrativeCase.fulfillmentMode !== "SELF_SERVICE" ||
+        !administrativeCase.validatedAt
+      ) {
+        throw new BadRequestException(
+          "Seul un dossier finalise et envoye par vos soins peut etre marque comme envoye.",
+        );
+      }
+      if (!["GENERATED", "PRINT_READY"].includes(administrativeCase.status)) {
+        throw new BadRequestException(
+          "Ce dossier ne peut pas etre marque comme envoye.",
+        );
+      }
+      const changed = await transaction.administrativeCase.updateMany({
+        where: {
+          id: administrativeCase.id,
+          ownerId,
+          fulfillmentMode: "SELF_SERVICE",
+          status: { in: ["GENERATED", "PRINT_READY"] },
+        },
+        data: { status: "SENT" },
+      });
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          "Le dossier a change. Rechargez-le avant de confirmer son envoi.",
+        );
+      }
+      await transaction.auditLog.create({
+        data: {
+          actorId: ownerId,
+          action: "CASE_SENT_CONFIRMED",
+          entityType: "AdministrativeCase",
+          entityId: administrativeCase.id,
+          metadata: { fulfillmentMode: "SELF_SERVICE" },
+        },
+      });
+      const updated = await transaction.administrativeCase.findFirst({
+        where: { id: caseId, ownerId },
+        include: this.caseDetailIncludes,
+      });
+      if (!updated) throw new NotFoundException("Dossier introuvable.");
+      return updated;
+    });
+
+    return this.presentCaseDetail(updatedCase);
+  }
+
   async chooseFulfillment(caseId: string, mode: string, ownerId: string) {
     if (!["SELF_SERVICE", "MANAGED_POSTAL"].includes(mode)) {
       throw new BadRequestException(

@@ -76,6 +76,19 @@ export class EligibilityController {
     };
   }
 
+  @Post("cases/:id/sent")
+  async markSent(
+    @Param("id") caseId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return {
+      case: await this.eligibility.markSent(
+        caseId,
+        this.requireUserId(request),
+      ),
+    };
+  }
+
   @Post("cases/:id/start")
   async startCase(
     @Param("id") caseId: string,

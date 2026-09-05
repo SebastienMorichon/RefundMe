@@ -13,6 +13,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "../../components/auth-shell";
 import { apiFetch as fetch } from "../../lib/api-client";
+import { documentsPageEnabled } from "../../lib/feature-flags";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const currentLegalConsentVersion = "2026-08-03.v1";
@@ -72,11 +73,11 @@ export default function VerifyEmailPage() {
       });
       const payload = await readJson(response);
       if (!response.ok) {
-        throw new Error(
-          errorMessage(payload, "Lien invalide ou expiré."),
-        );
+        throw new Error(errorMessage(payload, "Lien invalide ou expiré."));
       }
-      router.replace("/documents?bienvenue=1");
+      router.replace(
+        documentsPageEnabled ? "/documents?bienvenue=1" : "/dashboard",
+      );
       router.refresh();
     } catch (error) {
       setMessage(
@@ -136,11 +137,21 @@ export default function VerifyEmailPage() {
           />
           <span>
             Je confirme accepter les{" "}
-            <a href="/cgu" target="_blank" rel="noreferrer" className="font-bold text-[#087a55] underline">
+            <a
+              href="/cgu"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-[#087a55] underline"
+            >
               conditions d’utilisation
             </a>{" "}
             et avoir pris connaissance de la{" "}
-            <a href="/confidentialite" target="_blank" rel="noreferrer" className="font-bold text-[#087a55] underline">
+            <a
+              href="/confidentialite"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-[#087a55] underline"
+            >
               politique de confidentialité
             </a>
             .
@@ -148,7 +159,10 @@ export default function VerifyEmailPage() {
         </label>
 
         {message ? (
-          <div className="flex gap-3 border-l-4 border-[#e9654b] bg-[#fff0ec] p-4 text-sm text-[#8e3d2c]" role="alert">
+          <div
+            className="flex gap-3 border-l-4 border-[#e9654b] bg-[#fff0ec] p-4 text-sm text-[#8e3d2c]"
+            role="alert"
+          >
             <AlertCircle size={18} className="shrink-0" />
             {message}
           </div>
@@ -158,14 +172,21 @@ export default function VerifyEmailPage() {
           disabled={isBusy || !token}
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#087a55] px-5 text-sm font-extrabold text-white hover:bg-[#066344] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isBusy ? <LoaderCircle size={17} className="animate-spin" /> : <ArrowRight size={17} />}
+          {isBusy ? (
+            <LoaderCircle size={17} className="animate-spin" />
+          ) : (
+            <ArrowRight size={17} />
+          )}
           Activer mon compte
         </button>
       </form>
       {tokenLoaded && !token ? (
         <p className="mt-6 text-center text-sm text-[#8e3d2c]" role="alert">
           Ce lien ne contient aucun jeton. Recommencez depuis la{" "}
-          <a href="/inscription" className="font-bold underline">page d’inscription</a>.
+          <a href="/inscription" className="font-bold underline">
+            page d’inscription
+          </a>
+          .
         </p>
       ) : null}
     </AuthShell>
@@ -183,7 +204,10 @@ function PasswordField(props: {
     <label className="grid gap-2 text-sm font-bold text-[#24332c]">
       {props.label}
       <span className="relative">
-        <LockKeyhole size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b95a8]" />
+        <LockKeyhole
+          size={17}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b95a8]"
+        />
         <input
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
@@ -198,7 +222,9 @@ function PasswordField(props: {
           type="button"
           onClick={props.onToggle}
           className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-md text-[#66736d] hover:bg-[#edf2f8]"
-          aria-label={props.show ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          aria-label={
+            props.show ? "Masquer le mot de passe" : "Afficher le mot de passe"
+          }
         >
           {props.show ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
@@ -210,7 +236,9 @@ function PasswordField(props: {
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   try {
     const value: unknown = await response.json();
-    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
   } catch {
     return {};
   }

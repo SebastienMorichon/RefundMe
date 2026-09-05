@@ -578,6 +578,39 @@ export default function CasePage() {
     }
   }
 
+  async function markSent() {
+    if (!window.confirm("Confirmer que vous avez envoyé ce dossier ?")) return;
+    setIsBusy(true);
+    setMessage("Enregistrement de l’envoi...");
+    setMessageTone("info");
+    try {
+      const response = await fetch(`${apiUrl}/cases/${caseId}/sent`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const payload = await readJson(response);
+      const parsedCase = readCaseDetail(payload.case);
+      if (!response.ok || !parsedCase)
+        throw new Error(
+          errorMessage(payload, "Impossible de confirmer l’envoi du dossier."),
+        );
+      setAdministrativeCase(parsedCase);
+      setMessage(
+        "Envoi confirmé. Vous pouvez maintenant suivre votre remboursement.",
+      );
+      setMessageTone("success");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de confirmer l’envoi du dossier.",
+      );
+      setMessageTone("error");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function deleteCase() {
     if (
       !window.confirm(
@@ -748,6 +781,7 @@ export default function CasePage() {
                 isBusy={isBusy}
                 onDownload={openPacket}
                 onSwitch={() => chooseFulfillment("MANAGED_POSTAL")}
+                onSent={markSent}
                 onRefunded={markRefunded}
               />
             ) : !managedPostalEnabled && !isPaid ? (

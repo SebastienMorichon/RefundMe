@@ -14,6 +14,7 @@ import { AppShell } from "../../components/app-shell";
 import { PageHeading } from "../../components/cockpit-ui";
 import { LoadingState, Notice, StatusBadge } from "../../components/client-ui";
 import { apiFetch as fetch } from "../../lib/api-client";
+import { documentsPageEnabled } from "../../lib/feature-flags";
 import {
   apiUrl,
   caseProgress,
@@ -131,12 +132,14 @@ export default function CasesPage() {
           title="Portefeuille de dossiers"
           description="Visualisez l’avancement, la prochaine action et le montant associé à chaque demande."
           action={
-            <a
-              href="/documents?new=1"
-              className="primary-button min-h-10 self-start px-4 text-xs sm:self-auto"
-            >
-              <Plus size={15} /> Nouveau dossier
-            </a>
+            documentsPageEnabled ? (
+              <a
+                href="/documents?new=1"
+                className="primary-button min-h-10 self-start px-4 text-xs sm:self-auto"
+              >
+                <Plus size={15} /> Nouveau dossier
+              </a>
+            ) : undefined
           }
         />
 
@@ -215,55 +218,57 @@ export default function CasesPage() {
             aria-labelledby={`case-filter-${filter}`}
             tabIndex={0}
           >
-          {visibleCases.length === 0 ? (
-            <div className="px-5 py-16 text-center">
-              <FolderKanban className="mx-auto text-[#99a59f]" size={28} />
-              <h2 className="mt-4 text-lg font-extrabold text-[#24332c]">
-                Aucun dossier dans cette vue
-              </h2>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
-                {cases.length === 0
-                  ? "Analysez une facture pour rechercher un remboursement possible."
-                  : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
-              </p>
-              {cases.length === 0 ? (
-                <a href="/documents?new=1" className="primary-button mt-6">
-                  Analyser une facture <ArrowRight size={17} />
-                </a>
-              ) : null}
-            </div>
-          ) : (
-            <>
-              <div className="hidden lg:block">
-                <div className="grid grid-cols-[minmax(180px,1.1fr)_170px_minmax(190px,1fr)_130px_125px_36px] gap-5 bg-[#f8faf9] px-5 py-3 text-[10px] font-extrabold uppercase text-[#849089]">
-                  <span>Dossier</span>
-                  <span>Progression</span>
-                  <span>Prochaine action</span>
-                  <span>Montant</span>
-                  <span>Statut</span>
-                  <span />
+            {visibleCases.length === 0 ? (
+              <div className="px-5 py-16 text-center">
+                <FolderKanban className="mx-auto text-[#99a59f]" size={28} />
+                <h2 className="mt-4 text-lg font-extrabold text-[#24332c]">
+                  Aucun dossier dans cette vue
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
+                  {cases.length === 0
+                    ? documentsPageEnabled
+                      ? "Analysez une facture pour rechercher un remboursement possible."
+                      : "Vos démarches apparaîtront ici dès qu’un dossier sera disponible."
+                    : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
+                </p>
+                {cases.length === 0 && documentsPageEnabled ? (
+                  <a href="/documents?new=1" className="primary-button mt-6">
+                    Analyser une facture <ArrowRight size={17} />
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className="hidden lg:block">
+                  <div className="grid grid-cols-[minmax(180px,1.1fr)_170px_minmax(190px,1fr)_130px_125px_36px] gap-5 bg-[#f8faf9] px-5 py-3 text-[10px] font-extrabold uppercase text-[#849089]">
+                    <span>Dossier</span>
+                    <span>Progression</span>
+                    <span>Prochaine action</span>
+                    <span>Montant</span>
+                    <span>Statut</span>
+                    <span />
+                  </div>
+                  <div className="divide-y divide-[#e7ece9]">
+                    {visibleCases.map((item) => (
+                      <CaseTableRow key={item.id} item={item} />
+                    ))}
+                  </div>
                 </div>
-                <div className="divide-y divide-[#e7ece9]">
+                <div className="divide-y divide-[#e7ece9] lg:hidden">
                   {visibleCases.map((item) => (
-                    <CaseTableRow key={item.id} item={item} />
+                    <CaseMobileRow key={item.id} item={item} />
                   ))}
                 </div>
-              </div>
-              <div className="divide-y divide-[#e7ece9] lg:hidden">
-                {visibleCases.map((item) => (
-                  <CaseMobileRow key={item.id} item={item} />
-                ))}
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          {visibleCases.length > 0 ? (
-            <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-3 text-right text-[11px] text-[#7b8781]">
-              {visibleCases.length} dossier
-              {visibleCases.length > 1 ? "s" : ""} affiché
-              {visibleCases.length > 1 ? "s" : ""}
-            </div>
-          ) : null}
+            {visibleCases.length > 0 ? (
+              <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-3 text-right text-[11px] text-[#7b8781]">
+                {visibleCases.length} dossier
+                {visibleCases.length > 1 ? "s" : ""} affiché
+                {visibleCases.length > 1 ? "s" : ""}
+              </div>
+            ) : null}
           </div>
         </section>
       </div>

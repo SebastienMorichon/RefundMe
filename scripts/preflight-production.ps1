@@ -408,6 +408,7 @@ if ($ExpectedProfile -eq "free-beta") {
   Require-Exact $Configuration "SERVICE_POSTAL_PRODUCTION_ENABLED" "false" $Invalid
 }
 
+Require-Boolean $Configuration "NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED" $Invalid
 Require-Boolean $Configuration "NOTIFICATIONS_REQUIRED" $Invalid
 
 $BindAddress = $Configuration["LYDOC_BIND_ADDRESS"]

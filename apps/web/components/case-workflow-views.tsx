@@ -626,6 +626,7 @@ export function SelfServiceView({
   isBusy,
   onDownload,
   onSwitch,
+  onSent,
   onRefunded,
 }: {
   administrativeCase: CaseDetail;
@@ -633,13 +634,15 @@ export function SelfServiceView({
   isBusy: boolean;
   onDownload: () => Promise<void>;
   onSwitch: () => Promise<void>;
+  onSent: () => Promise<void>;
   onRefunded: () => Promise<void>;
 }) {
   const refunded = administrativeCase.status === "REFUNDED";
+  const sent = administrativeCase.status === "SENT";
   return (
     <section className="mx-auto max-w-3xl text-center">
       <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#eaf8f1] text-[#16875b]">
-        {refunded ? <CheckCircle2 size={23} /> : <Download size={22} />}
+        {refunded || sent ? <CheckCircle2 size={23} /> : <Download size={22} />}
       </span>
       <p className="mt-5 text-xs font-extrabold uppercase text-[#16875b]">
         Formule gratuite
@@ -647,7 +650,9 @@ export function SelfServiceView({
       <h2 className="mt-3 text-2xl font-extrabold text-[#17211d]">
         {refunded
           ? "Votre remboursement est confirmé."
-          : "Votre dossier complet est prêt."}
+          : sent
+            ? "Votre dossier a bien été envoyé."
+            : "Votre dossier complet est prêt."}
       </h2>
       <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#66736d]">
         Le PDF contient la lettre de demande et toutes les pièces exigées par le
@@ -677,6 +682,16 @@ export function SelfServiceView({
       >
         <Download size={17} /> Télécharger mon dossier complet
       </button>
+      {!refunded && !sent ? (
+        <button
+          type="button"
+          onClick={() => void onSent()}
+          disabled={isBusy}
+          className="secondary-button mt-3 min-w-[270px]"
+        >
+          <Send size={17} /> J’ai envoyé mon dossier
+        </button>
+      ) : null}
       {!refunded && managedPostalEnabled ? (
         <div className="mt-5 flex flex-col items-center gap-3">
           <button
