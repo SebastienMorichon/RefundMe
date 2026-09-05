@@ -14,13 +14,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { createWriteStream } from "node:fs";
-import { mkdir, readFile, unlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import {
   UploadUserDocument,
   type DocumentRepository,
@@ -43,7 +37,7 @@ import { UploadConcurrencyInterceptor } from "./upload-concurrency.interceptor";
 
 type UploadDocumentBody = Readonly<{ kind?: DocumentKind }>;
 type UploadedDocumentFile = Readonly<{
-  filename: string;
+  buffer: Buffer;
   originalname: string;
   mimetype: string;
   size: number;
@@ -52,71 +46,50 @@ type UploadedDocumentFile = Readonly<{
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
 const maxDocumentsPerAccount = 50;
 const maxStoredBytesPerAccount = 100 * 1024 * 1024;
-const temporaryUploadDirectory = resolve(tmpdir(), "lydoc-uploads");
-const temporaryUploadStorage = {
+const boundedMemoryUploadStorage = {
   _handleFile(
     _request: unknown,
     file: { stream: Readable },
     callback: (
       error: Error | null,
       information?: {
-        destination: string;
-        filename: string;
-        path: string;
+        buffer: Buffer;
         size: number;
       },
     ) => void,
   ) {
-    void mkdir(temporaryUploadDirectory, { recursive: true })
-      .then(async () => {
-        const filename = `${randomUUID()}.upload`;
-        const path = resolve(temporaryUploadDirectory, filename);
-        const output = createWriteStream(path, { flags: "wx", mode: 0o600 });
-        let size = 0;
-        file.stream.on("data", (chunk: Buffer) => {
-          size += chunk.byteLength;
-        });
-        try {
-          await pipeline(file.stream, output);
-          callback(null, {
-            destination: temporaryUploadDirectory,
-            filename,
-            path,
-            size,
-          });
-        } catch (error) {
-          await unlink(path).catch(() => undefined);
-          callback(
-            error instanceof Error ? error : new Error("Upload interrompu."),
-          );
-        }
-      })
-      .catch((error: unknown) =>
+    void readBoundedUpload(file.stream).then(
+      (information) => callback(null, information),
+      (error: unknown) =>
         callback(
-          error instanceof Error
-            ? error
-            : new Error("Stockage temporaire indisponible."),
+          error instanceof Error ? error : new Error("Upload interrompu."),
         ),
-      );
+    );
   },
   _removeFile(
     _request: unknown,
-    file: { path?: string },
+    _file: unknown,
     callback: (error: Error | null) => void,
   ) {
-    if (!file.path) {
-      callback(null);
-      return;
-    }
-    void unlink(file.path)
-      .then(() => callback(null))
-      .catch((error: unknown) =>
-        callback(
-          error instanceof Error ? error : new Error("Nettoyage impossible."),
-        ),
-      );
+    callback(null);
   },
 };
+
+async function readBoundedUpload(
+  stream: Readable,
+): Promise<{ buffer: Buffer; size: number }> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.byteLength;
+    if (size > maxDocumentSizeBytes) {
+      throw new BadRequestException("Fichier trop volumineux.");
+    }
+    chunks.push(bytes);
+  }
+  return { buffer: Buffer.concat(chunks, size), size };
+}
 
 @Controller("documents")
 @UseGuards(AuthGuard)
@@ -166,7 +139,7 @@ export class DocumentsController {
   @UseInterceptors(
     UploadConcurrencyInterceptor,
     FileInterceptor("file", {
-      storage: temporaryUploadStorage,
+      storage: boundedMemoryUploadStorage,
       limits: {
         fileSize: maxDocumentSizeBytes,
         files: 1,
@@ -188,19 +161,14 @@ export class DocumentsController {
     if (!file || file.size < 1) {
       throw new BadRequestException("Fichier manquant ou vide.");
     }
-    const temporaryPath = resolveTemporaryUploadPath(file.filename);
-    const document = await this.handleUploadError(async () => {
-      try {
-        return await this.uploadUserDocument.execute({
-          ownerId: this.requireUserId(request),
-          kind: this.parseKind(body.kind),
-          originalName: file.originalname,
-          mimeType: file.mimetype,
-          bytes: await readFile(temporaryPath),
-        });
-      } finally {
-        await unlink(temporaryPath).catch(() => undefined);
-      }
+    const document = await this.handleUploadError(() => {
+      return this.uploadUserDocument.execute({
+        ownerId: this.requireUserId(request),
+        kind: this.parseKind(body.kind),
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        bytes: file.buffer,
+      });
     });
 
     return {
@@ -270,17 +238,6 @@ export class DocumentsController {
       );
     }
   }
-}
-
-function resolveTemporaryUploadPath(filename: string): string {
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.upload$/i.test(
-      filename,
-    )
-  ) {
-    throw new BadRequestException("Fichier temporaire invalide.");
-  }
-  return resolve(temporaryUploadDirectory, filename);
 }
 
 function isSafeUploadMessage(message: string): boolean {
