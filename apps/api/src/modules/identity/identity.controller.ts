@@ -363,9 +363,9 @@ export class IdentityController {
   @UseGuards(AuthGuard)
   async exportAccount(
     @Req() request: AuthenticatedRequest,
-    @Query("resource") resourceValue?: string,
-    @Query("cursor") cursorValue?: string,
-    @Query("limit") limitValue?: string,
+    @Query("resource") resourceValue?: unknown,
+    @Query("cursor") cursorValue?: unknown,
+    @Query("limit") limitValue?: unknown,
   ) {
     if (!request.user) throw new UnauthorizedException("Session invalide.");
     return this.dataRights.exportPage({
@@ -531,7 +531,10 @@ function secureCookieAttribute(): string {
   return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }
 
-function readExportResource(value: string | undefined): AccountExportResource {
+function readExportResource(value: unknown): AccountExportResource {
+  if (value !== undefined && typeof value !== "string") {
+    throw new BadRequestException("Ressource d'export invalide.");
+  }
   const resource = value ?? "profile";
   if (!accountExportResources.includes(resource as AccountExportResource)) {
     throw new BadRequestException("Ressource d'export invalide.");
@@ -539,16 +542,22 @@ function readExportResource(value: string | undefined): AccountExportResource {
   return resource as AccountExportResource;
 }
 
-function readExportCursor(value: string | undefined): string | null {
+function readExportCursor(value: unknown): string | null {
   if (value === undefined || value === "") return null;
+  if (typeof value !== "string") {
+    throw new BadRequestException("Curseur d'export invalide.");
+  }
   if (value.length > 128 || !/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new BadRequestException("Curseur d'export invalide.");
   }
   return value;
 }
 
-function readExportLimit(value: string | undefined): number {
+function readExportLimit(value: unknown): number {
   if (value === undefined || value === "") return 50;
+  if (typeof value !== "string") {
+    throw new BadRequestException("Limite d'export invalide.");
+  }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
     throw new BadRequestException("Limite d'export invalide.");

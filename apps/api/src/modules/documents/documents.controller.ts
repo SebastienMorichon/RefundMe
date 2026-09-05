@@ -43,9 +43,9 @@ import { UploadConcurrencyInterceptor } from "./upload-concurrency.interceptor";
 
 type UploadDocumentBody = Readonly<{ kind?: DocumentKind }>;
 type UploadedDocumentFile = Readonly<{
+  filename: string;
   originalname: string;
   mimetype: string;
-  path: string;
   size: number;
 }>;
 
@@ -111,7 +111,9 @@ const temporaryUploadStorage = {
     void unlink(file.path)
       .then(() => callback(null))
       .catch((error: unknown) =>
-        callback(error instanceof Error ? error : new Error("Nettoyage impossible.")),
+        callback(
+          error instanceof Error ? error : new Error("Nettoyage impossible."),
+        ),
       );
   },
 };
@@ -183,9 +185,10 @@ export class DocumentsController {
     @Body() body: UploadDocumentBody,
     @UploadedFile() file: UploadedDocumentFile | undefined,
   ) {
-    if (!file?.path || file.size < 1) {
+    if (!file || file.size < 1) {
       throw new BadRequestException("Fichier manquant ou vide.");
     }
+    const temporaryPath = resolveTemporaryUploadPath(file.filename);
     const document = await this.handleUploadError(async () => {
       try {
         return await this.uploadUserDocument.execute({
@@ -193,10 +196,10 @@ export class DocumentsController {
           kind: this.parseKind(body.kind),
           originalName: file.originalname,
           mimeType: file.mimetype,
-          bytes: await readFile(file.path),
+          bytes: await readFile(temporaryPath),
         });
       } finally {
-        await unlink(file.path).catch(() => undefined);
+        await unlink(temporaryPath).catch(() => undefined);
       }
     });
 
@@ -267,6 +270,17 @@ export class DocumentsController {
       );
     }
   }
+}
+
+function resolveTemporaryUploadPath(filename: string): string {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.upload$/i.test(
+      filename,
+    )
+  ) {
+    throw new BadRequestException("Fichier temporaire invalide.");
+  }
+  return resolve(temporaryUploadDirectory, filename);
 }
 
 function isSafeUploadMessage(message: string): boolean {
