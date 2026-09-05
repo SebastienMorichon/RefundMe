@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm dev:prepare && node scripts/kill-dev-ports.mjs && pnpm --parallel --filter @lydoc/web --filter @lydoc/api dev",
-    "dev:prepare": "node scripts/clean-build-cache.mjs && pnpm --filter @lydoc/domain --filter @lydoc/application --filter @lydoc/infrastructure --filter @lydoc/config build",
+    "dev:prepare": "node scripts/clean-build-cache.mjs && pnpm --filter @lydoc/domain --filter @lydoc/application --filter @lydoc/infrastructure --filter @lydoc/config --filter @lydoc/ui build",
     "build": "pnpm -r --stream build",
     "clean:api": "node scripts/clean-api-dist.mjs",
     "clean:build": "node scripts/clean-build-cache.mjs",
@@ -18,10 +18,14 @@
     "typecheck": "pnpm dev:prepare && pnpm -r --stream typecheck",
     "test": "pnpm -r --stream test",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit:prod": "pnpm audit --prod --audit-level moderate",
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma"
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-lydoc.ps1",
+    "admin:provision": "node scripts/provision-admin.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

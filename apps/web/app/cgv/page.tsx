@@ -1,17 +1,85 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Conditions générales de vente" };
+export const metadata: Metadata = {
+  title: "Offre payante bientôt disponible",
+};
 
-export default function TermsPage() {
+export default function SalesTermsPage() {
   const sections = [
-    { id: "objet", title: "1. Objet du service", content: <><p>Lydoc propose un service d’analyse documentaire et d’assistance à la préparation de dossiers de remboursement. Le service identifie des conditions potentiellement applicables à partir des documents transmis par l’utilisateur.</p><p>Lydoc n’est ni l’organisateur du jeu ni l’organisme payeur. Il ne décide pas de l’acceptation ou du refus d’une demande.</p></> },
-    { id: "compte", title: "2. Création du compte", content: <><p>L’utilisateur crée un compte avec une adresse e-mail valide et un mot de passe. Il est responsable de la confidentialité de ses accès et de l’exactitude des informations transmises.</p><p>Le RIB et la pièce d’identité ne sont pas exigés lors de l’inscription. Ils peuvent être demandés ultérieurement lorsqu’ils sont nécessaires au dossier choisi.</p></> },
-    { id: "analyse", title: "3. Analyse et estimation", content: <><p>Les résultats affichés sont des estimations établies à partir de la lisibilité du document, des informations détectées et du règlement disponible. Ils doivent être vérifiés avant l’envoi définitif.</p><p>Aucune estimation ne constitue une garantie de remboursement.</p></> },
-    { id: "prix", title: "4. Prix et paiement", content: <><p>L’analyse initiale est proposée sans paiement. Le prix applicable à la préparation d’un dossier est communiqué clairement avant la validation par l’utilisateur.</p><p>Le service ne comporte pas d’abonnement sauf accord exprès présenté séparément. Les modalités définitives de paiement et de rétractation devront être validées avant la mise en production.</p></> },
-    { id: "obligations", title: "5. Obligations de l’utilisateur", content: <><p>L’utilisateur transmet uniquement des documents lui appartenant ou qu’il est autorisé à utiliser. Il s’engage à ne pas altérer les justificatifs et à vérifier les informations de son dossier avant validation.</p></> },
-    { id: "responsabilite", title: "6. Responsabilité", content: <><p>Lydoc met en œuvre des moyens raisonnables pour préparer un dossier cohérent. La décision finale, les délais de traitement et le versement relèvent exclusivement de l’organisateur ou de son mandataire.</p></> },
-    { id: "contact", title: "7. Contact et réclamations", content: <><p>Toute question relative au service peut être adressée à contact@lydoc.fr. Les coordonnées légales et les modalités de médiation seront complétées avant l’ouverture commerciale.</p></> },
+    {
+      id: "indisponible",
+      title: "1. Offre non commercialisée",
+      content: (
+        <>
+          <p>
+            Lydoc ne commercialise actuellement aucune prestation payante. Aucun
+            paiement, abonnement, devis postal ou commande d’impression ne peut
+            être réalisé sur la plateforme.
+          </p>
+          <p>
+            Les informations relatives à une future prise en charge de
+            l’impression et de l’envoi sont communiquées à titre de présentation
+            uniquement. Elles ne constituent ni une offre ferme ni un engagement
+            contractuel.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: "gratuit",
+      title: "2. Service disponible",
+      content: (
+        <p>
+          Le service accessible est régi par les conditions générales
+          d’utilisation. Il permet gratuitement de créer un compte, d’analyser
+          une facture, de constituer un dossier et de le télécharger afin de
+          l’imprimer et de l’envoyer soi-même.
+        </p>
+      ),
+    },
+    {
+      id: "future",
+      title: "3. Conditions de la future offre",
+      content: (
+        <>
+          <p>
+            Avant toute ouverture commerciale, Lydoc publiera des conditions de
+            vente complètes précisant notamment l’identité du prestataire, les
+            prix TTC, les délais, la validation finale, le mandat d’expédition,
+            la rétractation, les remboursements, les réclamations et le
+            médiateur de la consommation.
+          </p>
+          <p>
+            Ces conditions devront être acceptées expressément avant toute
+            commande. La présentation actuelle ne vaut pas acceptation
+            anticipée.
+          </p>
+        </>
+      ),
+    },
+    {
+      id: "contact",
+      title: "4. Contact",
+      content: (
+        <p>
+          Pour toute question sur le service actuel ou la future offre, écrivez
+          à contact.lydoc@gmail.com.
+        </p>
+      ),
+    },
   ];
-  return <PublicPage eyebrow="Informations contractuelles" title="Conditions générales de vente" description="Le cadre d’utilisation du service Lydoc et les responsabilités de chacun."><LegalDocument updatedAt="10 juillet 2026 - version de travail" sections={sections} /></PublicPage>;
+
+  return (
+    <PublicPage
+      eyebrow="Prochaine étape"
+      title="L’envoi par Lydoc arrive bientôt."
+      description="La formule payante est volontairement désactivée pendant la phase de lancement."
+    >
+      <LegalDocument
+        updatedAt="2 août 2026 - aucune offre payante active"
+        sections={sections}
+      />
+    </PublicPage>
+  );
 }

@@ -12,6 +12,12 @@ enum UserRole {
   ADMIN
 }
 
+enum IdentityTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  ADMIN_MFA_LOGIN
+}
+
 enum DocumentKind {
   GAME_RULE_PDF
   ORANGE_INVOICE
@@ -31,6 +37,13 @@ enum DocumentStatus {
   ANALYSIS_PENDING
   ANALYZED
   FAILED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 enum RuleStatus {
@@ -62,63 +75,247 @@ enum PaymentStatus {
   REFUNDED
 }
 
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(USER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+enum ContactDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
 
-  documents    Document[]
-  cases        AdministrativeCase[]
-  auditLogs    AuditLog[]
+enum CaseFulfillmentMode {
+  SELF_SERVICE
+  MANAGED_POSTAL
+}
+
+enum PostalShipmentStatus {
+  DRAFT
+  QUOTED
+  SUBMITTING
+  SUBMITTED
+  PRODUCED
+  HANDED_OVER
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum StoragePurgeJobStatus {
+  PENDING
+  OBJECT_DELETED
+}
+
+enum StoragePurgeEntityType {
+  DOCUMENT
+  DOCUMENT_REVISION
+  GENERATED_PACKET
+}
+
+model User {
+  id                        String    @id @default(cuid())
+  email                     String    @unique
+  passwordHash              String
+  role                      UserRole  @default(USER)
+  firstName                 String?
+  lastName                  String?
+  postalAddress             String?
+  postalCode                String?
+  city                      String?
+  country                   String?
+  phoneNumber               String?
+  operatorCustomerReference String?
+  consentVersion            String?   @db.VarChar(64)
+  consentedAt               DateTime?
+  emailVerifiedAt           DateTime?
+  mfaSecretEncrypted        String?   @db.Text
+  mfaEnabledAt              DateTime?
+  mfaLastUsedStep           BigInt?
+  accountDeletedAt          DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  documents          Document[]
+  cases              AdministrativeCase[]
+  auditLogs          AuditLog[]
+  notifications      NotificationDelivery[]
+  sessions           UserSession[]
+  identityTokens     IdentityToken[]
+  identityEmailOutbox IdentityEmailOutbox[]
+  uploadReservations DocumentUploadReservation[]
+
+  @@index([emailVerifiedAt, createdAt])
+  @@index([accountDeletedAt])
+}
+
+model UserSession {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique @db.Char(64)
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  mfaVerifiedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+model IdentityToken {
+  id        String               @id @default(cuid())
+  userId    String
+  purpose   IdentityTokenPurpose
+  tokenHash String               @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int                  @default(0)
+  createdAt DateTime             @default(now())
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailOutbox IdentityEmailOutbox?
+
+  @@index([userId, purpose, usedAt, expiresAt])
+  @@index([expiresAt])
+}
+
+model IdentityEmailOutbox {
+  id                String   @id @default(cuid())
+  userId            String
+  tokenId           String   @unique
+  rawTokenEncrypted String   @db.Text
+  attempts          Int      @default(0)
+  availableAt       DateTime @default(now())
+  lockedAt          DateTime?
+  lockId            String?  @db.VarChar(64)
+  sentAt            DateTime?
+  deadLetteredAt    DateTime?
+  failureCode       String?  @db.VarChar(48)
+  providerMessageId String?  @db.VarChar(128)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token IdentityToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt, deadLetteredAt, availableAt])
+  @@index([lockedAt])
+}
+
+model AuthBudgetBucket {
+  key       String   @id @db.VarChar(96)
+  count     Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model Document {
-  id             String         @id @default(cuid())
-  ownerId        String?
-  kind           DocumentKind
-  status         DocumentStatus @default(UPLOADED)
-  originalName   String
-  mimeType       String
-  sizeBytes      Int
+  id                   String         @id @default(cuid())
+  ownerId              String?
+  kind                 DocumentKind
+  status               DocumentStatus @default(UPLOADED)
+  originalName         String
+  mimeType             String
+  sizeBytes            Int
+  storageBucket        String
+  storageKey           String
+  checksumSha256       String
+  encrypted            Boolean        @default(true)
+  watermarked          Boolean        @default(false)
+  watermarkVersion     String?
+  watermarkReference   String?
+  watermarkedAt        DateTime?
+  deletionRequestedAt  DateTime?
+  purgeAfter           DateTime?
+  deletedAt            DateTime?
+  replacedByDocumentId String?
+  retentionExpiresAt   DateTime?
+  uploadedAt           DateTime       @default(now())
+  analyzedAt           DateTime?
+
+  owner            User?                     @relation(fields: [ownerId], references: [id])
+  ocrResult        OcrResult?
+  analyses         DocumentAnalysis[]
+  caseDocuments    CaseDocument[]
+  gameRules        GameRule[]                @relation("RuleSourceDocument")
+  storageRevisions DocumentStorageRevision[]
+}
+
+model DocumentUploadReservation {
+  id                        String   @id @default(cuid())
+  ownerId                   String
+  storageWriteReservationId String   @unique
+  sizeBytes                 Int
+  expiresAt                 DateTime
+  createdAt                 DateTime @default(now())
+
+  owner                   User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  storageWriteReservation StorageWriteReservation @relation(fields: [storageWriteReservationId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, expiresAt])
+  @@index([expiresAt])
+}
+
+model StorageWriteReservation {
+  id              String   @id @default(cuid())
+  sizeBytes       Int
+  purpose         String   @db.VarChar(64)
+  storageBucket   String?
+  storageKey      String?
+  checksumSha256  String?
+  expiresAt       DateTime
+  attempts        Int      @default(0)
+  lastError       String?
+  objectDeletedAt DateTime?
+  createdAt       DateTime @default(now())
+
+  documentUploadReservation DocumentUploadReservation?
+
+  @@index([expiresAt])
+  @@unique([storageBucket, storageKey])
+}
+
+model DocumentStorageRevision {
+  id             String    @id @default(cuid())
+  documentId     String
   storageBucket  String
   storageKey     String
   checksumSha256 String
-  encrypted      Boolean        @default(true)
-  uploadedAt     DateTime       @default(now())
-  analyzedAt     DateTime?
+  sizeBytes      Int
+  reason         String
+  expiresAt      DateTime
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
 
-  owner          User?          @relation(fields: [ownerId], references: [id])
-  ocrResult      OcrResult?
-  analyses       DocumentAnalysis[]
-  caseDocuments  CaseDocument[]
-  gameRules      GameRule[]     @relation("RuleSourceDocument")
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt, deletedAt])
 }
 
 model OcrResult {
-  id          String   @id @default(cuid())
-  documentId  String   @unique
-  provider    String
-  text        String
-  rawJson     Json
-  confidence  Decimal? @db.Decimal(5, 4)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  documentId String   @unique
+  provider   String
+  text       String
+  rawJson    Json
+  confidence Decimal? @db.Decimal(5, 4)
+  createdAt  DateTime @default(now())
 
-  document    Document @relation(fields: [documentId], references: [id])
+  document Document @relation(fields: [documentId], references: [id])
 }
 
 model DocumentAnalysis {
-  id          String   @id @default(cuid())
-  documentId  String
-  provider    String
-  schemaName  String
-  resultJson  Json
-  confidence  Decimal? @db.Decimal(5, 4)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  documentId String
+  provider   String
+  schemaName String
+  resultJson Json
+  confidence Decimal? @db.Decimal(5, 4)
+  createdAt  DateTime @default(now())
 
-  document    Document @relation(fields: [documentId], references: [id])
+  document Document @relation(fields: [documentId], references: [id])
 }
 
 model Organizer {
@@ -148,28 +345,33 @@ model GameRule {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  organizer          Organizer  @relation(fields: [organizerId], references: [id])
-  sourceDocument     Document   @relation("RuleSourceDocument", fields: [sourceDocumentId], references: [id])
-  cases              AdministrativeCase[]
+  organizer      Organizer            @relation(fields: [organizerId], references: [id])
+  sourceDocument Document             @relation("RuleSourceDocument", fields: [sourceDocumentId], references: [id])
+  cases          AdministrativeCase[]
 }
 
 model AdministrativeCase {
-  id                         String     @id @default(cuid())
-  ownerId                    String
-  gameRuleId                 String?
-  status                     CaseStatus @default(DRAFT)
-  estimatedRecoverableCents   Int
-  serviceFeeCents            Int        @default(299)
-  confidence                 Decimal?   @db.Decimal(5, 4)
-  complianceSnapshotJson      Json
-  createdAt                  DateTime   @default(now())
-  updatedAt                  DateTime   @updatedAt
+  id                        String               @id @default(cuid())
+  ownerId                   String
+  gameRuleId                String?
+  status                    CaseStatus           @default(DRAFT)
+  estimatedRecoverableCents Int
+  serviceFeeCents           Int                  @default(299)
+  confidence                Decimal?             @db.Decimal(5, 4)
+  complianceSnapshotJson    Json
+  validatedAt               DateTime?
+  validationSnapshotJson    Json?
+  fulfillmentMode           CaseFulfillmentMode?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
 
-  owner                      User       @relation(fields: [ownerId], references: [id])
-  gameRule                   GameRule?  @relation(fields: [gameRuleId], references: [id])
-  documents                  CaseDocument[]
-  payment                    Payment?
-  generatedPackets           GeneratedPacket[]
+  owner            User                   @relation(fields: [ownerId], references: [id])
+  gameRule         GameRule?              @relation(fields: [gameRuleId], references: [id])
+  documents        CaseDocument[]
+  payment          Payment?
+  generatedPackets GeneratedPacket[]
+  postalShipment   PostalShipment?
+  notifications    NotificationDelivery[]
 }
 
 model CaseDocument {
@@ -179,8 +381,8 @@ model CaseDocument {
   purpose    String
   createdAt  DateTime @default(now())
 
-  case       AdministrativeCase @relation(fields: [caseId], references: [id])
-  document   Document           @relation(fields: [documentId], references: [id])
+  case     AdministrativeCase @relation(fields: [caseId], references: [id])
+  document Document           @relation(fields: [documentId], references: [id])
 
   @@unique([caseId, documentId, purpose])
 }
@@ -197,29 +399,139 @@ model Payment {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
-  case                  AdministrativeCase @relation(fields: [caseId], references: [id])
+  case AdministrativeCase @relation(fields: [caseId], references: [id])
 }
 
 model GeneratedPacket {
-  id             String   @id @default(cuid())
-  caseId         String
-  storageBucket  String
-  storageKey     String
-  checksumSha256 String
-  createdAt      DateTime @default(now())
+  id               String    @id @default(cuid())
+  caseId           String
+  storageBucket    String
+  storageKey       String
+  checksumSha256   String
+  sizeBytes        Int
+  purgeRequestedAt DateTime?
+  createdAt        DateTime  @default(now())
 
-  case           AdministrativeCase @relation(fields: [caseId], references: [id])
+  case AdministrativeCase @relation(fields: [caseId], references: [id])
+
+  @@index([purgeRequestedAt, createdAt])
+}
+
+model StoragePurgeJob {
+  id              String                 @id @default(cuid())
+  groupType       String                 @db.VarChar(32)
+  groupId         String
+  entityType      StoragePurgeEntityType
+  entityId        String
+  storageBucket   String
+  storageKey      String
+  checksumSha256  String
+  sizeBytes       Int
+  status          StoragePurgeJobStatus  @default(PENDING)
+  attempts        Int                    @default(0)
+  lastError       String?
+  objectDeletedAt DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@unique([storageBucket, storageKey])
+  @@index([status, createdAt])
+  @@index([groupType, groupId, status])
+}
+
+model PostalShipment {
+  id                   String               @id @default(cuid())
+  caseId               String               @unique
+  provider             String
+  environment          String
+  product              String               @default("vertesuivi")
+  status               PostalShipmentStatus @default(DRAFT)
+  providerUid          String?
+  postageCents         Int                  @default(0)
+  printingCents        Int                  @default(0)
+  providerPostageCents Int                  @default(0)
+  providerServiceCents Int                  @default(0)
+  providerTotalCents   Int                  @default(0)
+  totalCents           Int                  @default(0)
+  pricingSnapshotJson  Json?
+  currency             String               @default("eur")
+  previewUrl           String?
+  trackingNumber       String?
+  proofOfDepositUrl    String?
+  providerRequestId    String?
+  lastEventJson        Json?
+  errorMessage         String?
+  quotedAt             DateTime?
+  submittedAt          DateTime?
+  producedAt           DateTime?
+  handedOverAt         DateTime?
+  deliveredAt          DateTime?
+  trackingUpdatedAt    DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  case AdministrativeCase @relation(fields: [caseId], references: [id])
+
+  @@index([provider, providerUid])
+}
+
+model NotificationDelivery {
+  id                String                     @id @default(cuid())
+  userId            String?
+  caseId            String?
+  eventType         String
+  eventKey          String                     @unique
+  recipient         String
+  status            NotificationDeliveryStatus @default(PENDING)
+  provider          String
+  providerMessageId String?
+  errorMessage      String?
+  attempts          Int                        @default(0)
+  sentAt            DateTime?
+  readAt            DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  user User?               @relation(fields: [userId], references: [id])
+  case AdministrativeCase? @relation(fields: [caseId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model PricingConfiguration {
+  id                             String   @id @default("default")
+  serviceFeeCents                Int      @default(299)
+  printingBaseCents              Int      @default(90)
+  printingPerAdditionalPageCents Int      @default(31)
+  greenLetterCents               Int      @default(152)
+  trackedGreenLetterCents        Int      @default(202)
+  defaultPostalProduct           String   @default("vertesuivi")
+  updatedById                    String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  actorId     String?
-  action      String
-  entityType  String
-  entityId    String
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
 
-  actor       User?    @relation(fields: [actorId], references: [id])
+  actor User? @relation(fields: [actorId], references: [id])
 }
 
+model ContactSubmission {
+  id          String                @id @default(cuid())
+  emailHash   String                @db.Char(64)
+  clientHash  String                @db.Char(64)
+  status      ContactDeliveryStatus @default(PENDING)
+  completedAt DateTime?
+  createdAt   DateTime              @default(now())
+
+  @@index([status, createdAt])
+  @@index([emailHash, status, createdAt])
+  @@index([clientHash, status, createdAt])
+}

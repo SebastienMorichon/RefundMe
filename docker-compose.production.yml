@@ -1,0 +1,219 @@
+name: ${LYDOC_COMPOSE_PROJECT_NAME:-lydoc}
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lydoc
+      POSTGRES_USER: lydoc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - production-postgres:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lydoc -d lydoc"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      XDG_CACHE_HOME: /tmp/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=128m,noexec,nosuid,nodev
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  admin-provision:
+    build:
+      context: .
+      target: migrate
+    profiles: ["operator"]
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      MFA_ENCRYPTION_SECRET: ${MFA_ENCRYPTION_SECRET:?MFA_ENCRYPTION_SECRET is required}
+      MFA_ENCRYPTION_KEY_ID: ${MFA_ENCRYPTION_KEY_ID:?MFA_ENCRYPTION_KEY_ID is required}
+      DOCUMENT_ENCRYPTION_SECRET: ${DOCUMENT_ENCRYPTION_SECRET:?DOCUMENT_ENCRYPTION_SECRET is required}
+      BACKUP_ENCRYPTION_SECRET: ${BACKUP_ENCRYPTION_SECRET:?BACKUP_ENCRYPTION_SECRET is required}
+      XDG_CACHE_HOME: /tmp/.cache
+    entrypoint: ["node", "scripts/provision-admin.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=64m,noexec,nosuid,nodev
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  generated-packet-backfill:
+    build:
+      context: .
+      target: migrate
+    profiles: ["operator"]
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DOCUMENT_STORAGE_DIR: /app/var/storage
+      DOCUMENT_ENCRYPTION_SECRET: ${DOCUMENT_ENCRYPTION_SECRET:?DOCUMENT_ENCRYPTION_SECRET is required}
+      DOCUMENT_ENCRYPTION_KEY_ID: ${DOCUMENT_ENCRYPTION_KEY_ID:?DOCUMENT_ENCRYPTION_KEY_ID is required}
+      DOCUMENT_ENCRYPTION_PREVIOUS_KEYS: ${DOCUMENT_ENCRYPTION_PREVIOUS_KEYS:?DOCUMENT_ENCRYPTION_PREVIOUS_KEYS is required}
+      XDG_CACHE_HOME: /tmp/.cache
+    entrypoint: ["node", "scripts/backfill-generated-packet-sizes.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Audit and --apply only read encrypted objects. --apply writes exact
+      # sizes to PostgreSQL, so the document volume stays read-only.
+      - type: volume
+        source: production-documents
+        target: /app/var/storage
+        read_only: true
+    networks:
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=64m,noexec,nosuid,nodev
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: ${LYDOC_API_ENV_FILE:-.env.production}
+        required: true
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DOCUMENT_STORAGE_DIR: /app/var/storage
+      # Backup keys are host-operator secrets and must never reach the API.
+      BACKUP_ENCRYPTION_SECRET: ""
+      BACKUP_ENCRYPTION_PREVIOUS_KEYS: ""
+      XDG_CACHE_HOME: /tmp/.cache
+      PORT: 3001
+    volumes:
+      - production-documents:/app/var/storage
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=256m,noexec,nosuid,nodev
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 256
+    ports:
+      - "${LYDOC_BIND_ADDRESS:-127.0.0.1}:${LYDOC_API_PORT:-3001}:3001"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - edge
+      - data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1:3001/health/ready >/dev/null",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?NEXT_PUBLIC_APP_URL is required}
+        NEXT_PUBLIC_MANAGED_POSTAL_ENABLED: ${NEXT_PUBLIC_MANAGED_POSTAL_ENABLED:?NEXT_PUBLIC_MANAGED_POSTAL_ENABLED is required}
+        NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED: ${NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED:?NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED is required}
+        SECURITY_CONTACT_EMAIL: ${SECURITY_CONTACT_EMAIL:?SECURITY_CONTACT_EMAIL is required}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      XDG_CACHE_HOME: /tmp/.cache
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700,size=64m,noexec,nosuid,nodev
+      - /app/apps/web/.next/cache:uid=1000,gid=1000,mode=0700,size=128m,noexec,nosuid,nodev
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    ports:
+      - "${LYDOC_BIND_ADDRESS:-127.0.0.1}:${LYDOC_WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        # Web is needed on loopback during private first-rule bootstrap. Keep
+        # the public proxy closed until the API readiness probe turns green.
+        condition: service_started
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/ >/dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  edge:
+  data:
+    internal: true
+
+volumes:
+  production-postgres:
+    name: ${LYDOC_POSTGRES_VOLUME:-lydoc-production-postgres}
+  production-documents:
+    name: ${LYDOC_DOCUMENT_VOLUME:-lydoc-production-documents}

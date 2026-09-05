@@ -6,16 +6,17 @@ import { AuthenticatedRequest, readCookie } from "./auth.types";
 export class AuthGuard implements CanActivate {
   constructor(private readonly sessions: SessionService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const cookie = readCookie(request.headers.cookie, this.sessions.cookieName);
-    const user = this.sessions.readCookieValue(cookie);
+    const session = await this.sessions.readCookieValue(cookie);
 
-    if (!user) {
+    if (!session) {
       throw new UnauthorizedException("Session requise.");
     }
 
-    request.user = user;
+    request.user = session.user;
+    request.session = session;
     return true;
   }
 }

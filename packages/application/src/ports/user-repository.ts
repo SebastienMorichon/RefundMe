@@ -1,9 +1,8 @@
-import type { User, UserRole } from "@lydoc/domain";
+import type { User } from "@lydoc/domain";
 
 export type CreateUserInput = Readonly<{
   email: string;
   passwordHash: string;
-  role?: UserRole;
 }>;
 
 export interface UserRepository {

@@ -1,32 +1,38 @@
 import type { OcrInput, OcrProvider, OcrResult } from "@lydoc/application";
+import { PDFDocument } from "pdf-lib";
+import { boundedJsonRequest } from "../http/bounded-json-request";
+import { reserveMistralRequest } from "../http/mistral-request-budget";
+
+const maxInputBytes = 20 * 1024 * 1024;
+const maxResponseBytes = 12 * 1024 * 1024;
+const maxPdfPagesPerRequest = 10;
 
 export class MistralOcrProvider implements OcrProvider {
-  constructor(private readonly apiKey: string) {}
+  constructor(
+    private readonly apiKey: string,
+    private readonly options: Readonly<{
+      fetchImpl?: typeof fetch;
+      timeoutMs?: number;
+    }> = {},
+  ) {}
 
   async extractText(input: OcrInput): Promise<OcrResult> {
     if (!this.apiKey || this.apiKey === "change_me") {
       throw new Error("MISTRAL_API_KEY doit etre configuree pour utiliser l'OCR.");
     }
-
-    const response = await fetch("https://api.mistral.ai/v1/ocr", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "mistral-ocr-latest",
-        document: createDocumentPayload(input),
-        confidence_scores_granularity: "page",
-      }),
-    });
-
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(`Mistral OCR a refuse le document (HTTP ${response.status}).`);
+    if (
+      input.bytes.byteLength < 1 ||
+      input.bytes.byteLength > maxInputBytes ||
+      !["application/pdf", "image/png", "image/jpeg"].includes(input.mimeType)
+    ) {
+      throw new Error("Le document OCR est vide, trop volumineux ou dans un format non accepte.");
     }
 
-    const pages = readPages(payload);
+    const inputs = await splitPdfForOcr(input);
+    const pages = [];
+    for (const requestInput of inputs) {
+      pages.push(...await this.extractPages(requestInput));
+    }
     if (pages.length === 0) {
       throw new Error("Mistral OCR n'a retourne aucun texte exploitable.");
     }
@@ -44,6 +50,54 @@ export class MistralOcrProvider implements OcrProvider {
       raw: { pagesProcessed: pages.length },
     };
   }
+
+  private async extractPages(input: OcrInput) {
+    const releaseBudget = reserveMistralRequest();
+    const { response, payload } = await boundedJsonRequest(
+      "https://api.mistral.ai/v1/ocr",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "mistral-ocr-latest",
+          document: createDocumentPayload(input),
+          confidence_scores_granularity: "page",
+        }),
+      },
+      {
+        timeoutMs: this.options.timeoutMs ?? 30_000,
+        maxResponseBytes,
+        ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+      },
+    ).finally(releaseBudget);
+    if (!response.ok) {
+      throw new Error(`Mistral OCR a refuse le document (HTTP ${response.status}).`);
+    }
+    return readPages(payload);
+  }
+}
+
+async function splitPdfForOcr(input: OcrInput): Promise<OcrInput[]> {
+  if (input.mimeType !== "application/pdf") return [input];
+
+  const source = await PDFDocument.load(input.bytes);
+  if (source.getPageCount() <= maxPdfPagesPerRequest) return [input];
+
+  const chunks: OcrInput[] = [];
+  for (let firstPage = 0; firstPage < source.getPageCount(); firstPage += maxPdfPagesPerRequest) {
+    const chunk = await PDFDocument.create();
+    const pageIndexes = Array.from(
+      { length: Math.min(maxPdfPagesPerRequest, source.getPageCount() - firstPage) },
+      (_, index) => firstPage + index,
+    );
+    const copiedPages = await chunk.copyPages(source, pageIndexes);
+    copiedPages.forEach((page) => chunk.addPage(page));
+    chunks.push({ bytes: Buffer.from(await chunk.save()), mimeType: input.mimeType });
+  }
+  return chunks;
 }
 
 function createDocumentPayload(input: OcrInput) {
