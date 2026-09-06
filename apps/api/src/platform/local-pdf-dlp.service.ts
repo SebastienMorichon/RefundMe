@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PDFDocument } from "pdf-lib";
 import { spawn } from "node:child_process";
 import {
@@ -35,6 +35,7 @@ export class LocalPdfDlpBusyError extends Error {}
  */
 @Injectable()
 export class LocalPdfDlpService {
+  private readonly logger = new Logger(LocalPdfDlpService.name);
   private active = 0;
   private readonly concurrency = readBoundedInteger(
     process.env.AI_LOCAL_DLP_CONCURRENCY,
@@ -77,6 +78,12 @@ export class LocalPdfDlpService {
         this.maximumPages,
       );
       return classifyVisibleOrangeInvoiceText(visibleText);
+    } catch (error) {
+      this.logger.error(
+        "Local PDF privacy classification failed.",
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
     } finally {
       this.active = Math.max(0, this.active - 1);
     }
@@ -152,7 +159,10 @@ async function renderAndOcrVisiblePdfText(
   const workingDirectory = await mkdtemp(join(tmpdir(), "lydoc-local-dlp-"));
   const inputPath = join(workingDirectory, "document.pdf");
   const pagePrefix = join(workingDirectory, "page");
-  const deadline = Date.now() + 45_000;
+  // OCR on the production VPS can take more than eight seconds per page.
+  // Keep the rendering resolution sufficient for invoices while allowing
+  // slower multi-page documents to finish their local privacy check.
+  const deadline = Date.now() + 75_000;
   try {
     await writeFile(inputPath, bytes, { mode: 0o600 });
     await executeBoundedProcess(
@@ -165,13 +175,13 @@ async function renderAndOcrVisiblePdfText(
         "-gray",
         "-png",
         "-r",
-        "150",
+        "120",
         "-scale-to",
-        "2200",
+        "1800",
         inputPath,
         pagePrefix,
       ],
-      Math.max(1_000, Math.min(15_000, deadline - Date.now())),
+      Math.max(1_000, Math.min(20_000, deadline - Date.now())),
       64 * 1024,
     );
 
@@ -202,7 +212,7 @@ async function renderAndOcrVisiblePdfText(
       const output = await executeBoundedProcess(
         "tesseract",
         [pagePath, "stdout", "-l", "fra+eng", "--psm", "6"],
-        Math.min(8_000, remaining),
+        Math.min(15_000, remaining),
         maximumExtractedCharacters,
       );
       extracted.push(output);
