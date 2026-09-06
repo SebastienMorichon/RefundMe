@@ -10,6 +10,28 @@ const state: BudgetState = {
   active: 0,
 };
 
+let nextRequestAt = 0;
+let requestSlotQueue = Promise.resolve();
+
+export function waitForMistralRequestSlot(
+  intervalMs = readBoundedInteger(
+    process.env.MISTRAL_MIN_REQUEST_INTERVAL_MS,
+    1_100,
+    0,
+    60_000,
+  ),
+): Promise<void> {
+  const slot = requestSlotQueue.then(async () => {
+    const waitMs = Math.max(0, nextRequestAt - Date.now());
+    if (waitMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+    }
+    nextRequestAt = Date.now() + intervalMs;
+  });
+  requestSlotQueue = slot.catch(() => undefined);
+  return slot;
+}
+
 /**
  * Single-instance safety valve. Production must additionally configure a hard
  * budget at the provider and an account-level quota in the application.

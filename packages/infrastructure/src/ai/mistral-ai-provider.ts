@@ -4,7 +4,10 @@ import type {
   AiProvider,
 } from "@lydoc/application";
 import { boundedJsonRequest } from "../http/bounded-json-request";
-import { reserveMistralRequest } from "../http/mistral-request-budget";
+import {
+  reserveMistralRequest,
+  waitForMistralRequestSlot,
+} from "../http/mistral-request-budget";
 
 const maxDocumentCharacters = 250_000;
 const maxInstructionCharacters = 10_000;
@@ -37,6 +40,7 @@ export class MistralAiProvider implements AiProvider {
       throw new Error("Le texte ou l'instruction d'analyse depasse les limites autorisees.");
     }
 
+    await waitForMistralRequestSlot(this.options.fetchImpl ? 0 : undefined);
     const releaseBudget = reserveMistralRequest();
     const { response, payload } = await boundedJsonRequest(
       "https://api.mistral.ai/v1/chat/completions",

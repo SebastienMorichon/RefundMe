@@ -1,7 +1,10 @@
 import type { OcrInput, OcrProvider, OcrResult } from "@lydoc/application";
 import { PDFDocument } from "pdf-lib";
 import { boundedJsonRequest } from "../http/bounded-json-request";
-import { reserveMistralRequest } from "../http/mistral-request-budget";
+import {
+  reserveMistralRequest,
+  waitForMistralRequestSlot,
+} from "../http/mistral-request-budget";
 
 const maxInputBytes = 20 * 1024 * 1024;
 const maxResponseBytes = 12 * 1024 * 1024;
@@ -52,6 +55,7 @@ export class MistralOcrProvider implements OcrProvider {
   }
 
   private async extractPages(input: OcrInput) {
+    await waitForMistralRequestSlot(this.options.fetchImpl ? 0 : undefined);
     const releaseBudget = reserveMistralRequest();
     const { response, payload } = await boundedJsonRequest(
       "https://api.mistral.ai/v1/ocr",
