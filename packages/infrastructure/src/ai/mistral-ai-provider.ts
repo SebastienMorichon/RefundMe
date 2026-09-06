@@ -16,6 +16,7 @@ export class MistralAiProvider implements AiProvider {
     private readonly options: Readonly<{
       fetchImpl?: typeof fetch;
       timeoutMs?: number;
+      model?: string;
     }> = {},
   ) {}
 
@@ -46,7 +47,7 @@ export class MistralAiProvider implements AiProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "mistral-small-latest",
+          model: this.options.model ?? "mistral-small-latest",
           temperature: 0,
           max_tokens: 4_000,
           response_format: { type: "json_object" },
@@ -83,7 +84,7 @@ export class MistralAiProvider implements AiProvider {
     try {
       return {
         data: JSON.parse(content) as TData,
-        provider: "mistral-small-latest",
+        provider: this.options.model ?? "mistral-small-latest",
         raw: readUsage(payload),
       };
     } catch {

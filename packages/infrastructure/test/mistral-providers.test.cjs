@@ -122,3 +122,25 @@ test("AI rejects oversized or malformed provider responses", async () => {
     /reponse invalide/,
   );
 });
+
+test("AI uses the configured model for long-document analysis", async () => {
+  let request;
+  const provider = new MistralAiProvider("test-key", {
+    model: "mistral-large-latest",
+    async fetchImpl(_url, init) {
+      request = init;
+      return Response.json({
+        choices: [{ message: { content: '{"ok":true}' } }],
+      });
+    },
+  });
+
+  const result = await provider.extractStructuredData({
+    documentText: "document",
+    instruction: "extraire",
+    locale: "fr-FR",
+  });
+
+  assert.equal(JSON.parse(request.body).model, "mistral-large-latest");
+  assert.equal(result.provider, "mistral-large-latest");
+});

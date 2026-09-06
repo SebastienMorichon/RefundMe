@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { DocumentKind, Prisma, RuleStatus } from "@prisma/client";
 import {
@@ -56,6 +57,7 @@ export class RulesService {
   );
   private readonly mistralAi = new MistralAiProvider(
     process.env.MISTRAL_API_KEY ?? "",
+    { model: process.env.MISTRAL_RULE_ANALYSIS_MODEL ?? "mistral-large-latest" },
   );
 
   constructor(
@@ -92,6 +94,7 @@ export class RulesService {
       };
     }
 
+    const hasPersistedOcr = Boolean(document.ocrResult);
     const ocr = document.ocrResult
       ? {
           text: this.sensitiveText.decrypt(
@@ -105,12 +108,26 @@ export class RulesService {
           raw: document.ocrResult.rawJson,
         }
       : await this.runOcr(document, actorId);
-    const candidate = await this.analyzeRuleText(
-      ocr.text,
-      ocr.confidence,
-      actorId,
-      document.id,
-    );
+    if (!hasPersistedOcr) {
+      await this.persistOcr(document, ocr);
+    }
+
+    let candidate;
+    try {
+      candidate = await this.analyzeRuleText(
+        ocr.text,
+        ocr.confidence,
+        actorId,
+        document.id,
+      );
+    } catch (error) {
+      if (error instanceof Error && /Mistral AI.*HTTP 429/.test(error.message)) {
+        throw new ServiceUnavailableException(
+          "La limite temporaire d'analyse Mistral est atteinte. Le PDF a bien ete conserve : veuillez relancer l'analyse dans quelques instants.",
+        );
+      }
+      throw error;
+    }
 
     await this.prisma.$transaction(async (transaction) => {
       await lockDocumentLifecycle(transaction, document.id);
@@ -581,6 +598,45 @@ export class RulesService {
 
     await this.reserveMistralCall(actorId, "RULE_OCR", document.id);
     return this.mistralOcr.extractText({ bytes, mimeType: document.mimeType });
+  }
+
+  private async persistOcr(
+    document: { id: string; ownerId: string | null },
+    ocr: {
+      text: string;
+      provider: string;
+      confidence?: number;
+      raw: unknown;
+    },
+  ): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      await lockDocumentLifecycle(transaction, document.id);
+      const activeSource = await transaction.document.findFirst({
+        where: { id: document.id, ownerId: document.ownerId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!activeSource) {
+        throw new BadRequestException(
+          "Le PDF source du reglement a change pendant l'OCR.",
+        );
+      }
+      await transaction.ocrResult.upsert({
+        where: { documentId: document.id },
+        create: {
+          documentId: document.id,
+          provider: ocr.provider,
+          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          rawJson: toJsonValue(ocr.raw),
+        },
+        update: {
+          provider: ocr.provider,
+          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          rawJson: toJsonValue(ocr.raw),
+        },
+      });
+    });
   }
 
   private async analyzeRuleText(
