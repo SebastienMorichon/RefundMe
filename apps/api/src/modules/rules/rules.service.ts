@@ -57,7 +57,7 @@ export class RulesService {
   );
   private readonly mistralAi = new MistralAiProvider(
     process.env.MISTRAL_API_KEY ?? "",
-    { model: process.env.MISTRAL_RULE_ANALYSIS_MODEL ?? "mistral-large-latest" },
+    { model: process.env.MISTRAL_RULE_ANALYSIS_MODEL ?? "mistral-small-latest" },
   );
 
   constructor(
@@ -115,7 +115,7 @@ export class RulesService {
     let candidate;
     try {
       candidate = await this.analyzeRuleText(
-        ocr.text,
+        selectRelevantRuleText(ocr.text),
         ocr.confidence,
         actorId,
         document.id,
@@ -1062,4 +1062,37 @@ function readQuotaLimit(
   return Number.isInteger(parsed) && parsed > 0 && parsed <= maximum
     ? parsed
     : fallback;
+}
+
+const maxRuleAnalysisCharacters = 48_000;
+const ruleAnalysisKeywords =
+  /rembours|particip|sms|justific|facture|rib|identit|affranch|photocopi|impression|adresse|d[eé]lai|demande|frais|article/i;
+
+export function selectRelevantRuleText(text: string): string {
+  if (text.length <= maxRuleAnalysisCharacters) return text;
+
+  const blocks = text.split(/\n{2,}/).filter((block) => block.trim().length > 0);
+  const selected = new Set<number>();
+  let prefixCharacters = 0;
+  for (let index = 0; index < blocks.length && prefixCharacters < 10_000; index += 1) {
+    selected.add(index);
+    prefixCharacters += blocks[index]?.length ?? 0;
+  }
+  for (let index = 0; index < blocks.length; index += 1) {
+    if (!ruleAnalysisKeywords.test(blocks[index] ?? "")) continue;
+    for (let neighbor = Math.max(0, index - 2); neighbor <= Math.min(blocks.length - 1, index + 2); neighbor += 1) {
+      selected.add(neighbor);
+    }
+  }
+  let suffixCharacters = 0;
+  for (let index = blocks.length - 1; index >= 0 && suffixCharacters < 4_000; index -= 1) {
+    selected.add(index);
+    suffixCharacters += blocks[index]?.length ?? 0;
+  }
+
+  const result = [...selected]
+    .sort((left, right) => left - right)
+    .map((index) => blocks[index])
+    .join("\n\n");
+  return result.slice(0, maxRuleAnalysisCharacters);
 }

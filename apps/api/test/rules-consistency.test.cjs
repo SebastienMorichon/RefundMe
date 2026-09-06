@@ -4,7 +4,18 @@ const test = require("node:test");
 const {
   RulesService,
   gameRuleContentFingerprint,
+  selectRelevantRuleText,
 } = require("../dist/modules/rules/rules.service.js");
+
+test("long rule analysis keeps reimbursement passages within the provider budget", () => {
+  const filler = Array.from({ length: 250 }, (_, index) => `Bloc sans interet ${index} ${"x".repeat(300)}`).join("\n\n");
+  const reimbursement = "ARTICLE 8 REMBOURSEMENT\nJoindre la facture, un RIB et envoyer la demande a Libre Reponse 94119.";
+  const selected = selectRelevantRuleText(`${filler}\n\n${reimbursement}\n\n${filler}`);
+
+  assert.ok(selected.length <= 48_000);
+  assert.match(selected, /ARTICLE 8 REMBOURSEMENT/);
+  assert.match(selected, /Libre Reponse 94119/);
+});
 
 function presentableRule(overrides = {}) {
   return {
