@@ -28,6 +28,10 @@ RUN pnpm --filter @lydoc/api deploy --prod --legacy /prod/api \
     && mkdir -p /runtime \
     && cp /prod/api/package.json /runtime/package.json \
     && cp -R /prod/api/node_modules /runtime/node_modules \
+    && for prisma_modules in /runtime/node_modules/.pnpm/@prisma+client@*/node_modules; do \
+         mkdir -p "$prisma_modules/.prisma"; \
+         cp -R /app/node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/. "$prisma_modules/.prisma/"; \
+       done \
     && cp -R /app/apps/api/dist /runtime/dist \
     && cp -R /app/packages/application/dist /runtime/node_modules/@lydoc/application/dist \
     && cp -R /app/packages/config/dist /runtime/node_modules/@lydoc/config/dist \
@@ -35,7 +39,8 @@ RUN pnpm --filter @lydoc/api deploy --prod --legacy /prod/api \
     && cp -R /app/packages/infrastructure/dist /runtime/node_modules/@lydoc/infrastructure/dist \
     && test -f /runtime/dist/main.js \
     && test -f /runtime/node_modules/@lydoc/application/dist/index.js \
-    && test -f /runtime/node_modules/@prisma/client/index.js
+    && test -f /runtime/node_modules/@prisma/client/index.js \
+    && node -e "const { DocumentKind } = require('/runtime/node_modules/@prisma/client'); if (DocumentKind?.IDENTITY_DOCUMENT !== 'IDENTITY_DOCUMENT') process.exit(1)"
 
 FROM workspace AS web-builder
 ARG NEXT_PUBLIC_API_URL
