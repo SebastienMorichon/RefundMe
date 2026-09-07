@@ -103,6 +103,8 @@ summary:focus-visible {
   background: #fff;
   padding: 0.7rem 0.85rem;
   color: var(--foreground);
+  /* Prevent iOS Safari from auto-zooming focused controls below 16px. */
+  font-size: 1rem;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease;
