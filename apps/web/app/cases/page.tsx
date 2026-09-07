@@ -128,16 +128,16 @@ export default function CasesPage() {
     >
       <div className="page-container py-7 sm:py-9">
         <PageHeading
-          eyebrow="Vos remboursements"
-          title="Portefeuille de dossiers"
-          description="Visualisez l’avancement, la prochaine action et le montant associé à chaque demande."
+          eyebrow="Remboursement des SMS surtaxés"
+          title="Mes dossiers de remboursement SMS+"
+          description="Suivez chaque jeu-concours, les SMS+ détectés sur votre facture mobile, la prochaine action et le montant estimatif récupérable."
           action={
             documentsPageEnabled ? (
               <a
                 href="/documents?new=1"
                 className="primary-button min-h-10 self-start px-4 text-xs sm:self-auto"
               >
-                <Plus size={15} /> Nouveau dossier
+                <Plus size={15} /> Nouveau dossier SMS+
               </a>
             ) : undefined
           }
@@ -201,12 +201,14 @@ export default function CasesPage() {
                 size={15}
                 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7e8a84]"
               />
-              <span className="sr-only">Rechercher un dossier</span>
+              <span className="sr-only">
+                Rechercher un jeu-concours ou un organisateur
+              </span>
               <input
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher un dossier"
+                placeholder="Rechercher un jeu ou un organisateur"
                 className="h-9 w-full rounded-md border border-[#d5dfda] bg-white pl-9 pr-3 text-xs text-[#24332c] outline-none transition-colors placeholder:text-[#929d97] focus:border-[#087a55]"
               />
             </label>
@@ -222,18 +224,18 @@ export default function CasesPage() {
               <div className="px-5 py-16 text-center">
                 <FolderKanban className="mx-auto text-[#99a59f]" size={28} />
                 <h2 className="mt-4 text-lg font-extrabold text-[#24332c]">
-                  Aucun dossier dans cette vue
+                  Aucun dossier de remboursement dans cette vue
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
                   {cases.length === 0
                     ? documentsPageEnabled
-                      ? "Analysez une facture pour rechercher un remboursement possible."
-                      : "Vos démarches apparaîtront ici dès qu’un dossier sera disponible."
+                      ? "Analysez une facture mobile pour rechercher des SMS+ de jeux-concours potentiellement remboursables."
+                      : "Vos demandes de remboursement SMS+ apparaîtront ici dès qu’un dossier sera disponible."
                     : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
                 </p>
                 {cases.length === 0 && documentsPageEnabled ? (
                   <a href="/documents?new=1" className="primary-button mt-6">
-                    Analyser une facture <ArrowRight size={17} />
+                    Analyser une facture mobile <ArrowRight size={17} />
                   </a>
                 ) : null}
               </div>
@@ -241,10 +243,10 @@ export default function CasesPage() {
               <>
                 <div className="hidden lg:block">
                   <div className="grid grid-cols-[minmax(180px,1.1fr)_170px_minmax(190px,1fr)_130px_125px_36px] gap-5 bg-[#f8faf9] px-5 py-3 text-[10px] font-extrabold uppercase text-[#849089]">
-                    <span>Dossier</span>
+                    <span>Dossier SMS+</span>
                     <span>Progression</span>
                     <span>Prochaine action</span>
-                    <span>Montant</span>
+                    <span>Montant estimatif</span>
                     <span>Statut</span>
                     <span />
                   </div>
@@ -264,7 +266,7 @@ export default function CasesPage() {
 
             {visibleCases.length > 0 ? (
               <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-3 text-right text-[11px] text-[#7b8781]">
-                {visibleCases.length} dossier
+                {visibleCases.length} dossier de remboursement
                 {visibleCases.length > 1 ? "s" : ""} affiché
                 {visibleCases.length > 1 ? "s" : ""}
               </div>
@@ -285,7 +287,7 @@ function CaseTableRow({ item }: { item: CaseSummary }) {
     >
       <span className="min-w-0">
         <span className="block truncate text-sm font-extrabold text-[#24332c]">
-          {item.rule?.name ?? "Dossier de remboursement"}
+          {item.rule?.name ?? "Dossier de remboursement SMS+"}
         </span>
         <span className="mt-1 block truncate text-[11px] text-[#7b8781]">
           {item.rule?.organizer ?? "Organisateur"}
@@ -328,7 +330,7 @@ function CaseMobileRow({ item }: { item: CaseSummary }) {
       <span className="flex items-start justify-between gap-4">
         <span className="min-w-0">
           <span className="block truncate text-sm font-extrabold text-[#24332c]">
-            {item.rule?.name ?? "Dossier de remboursement"}
+            {item.rule?.name ?? "Dossier de remboursement SMS+"}
           </span>
           <span className="mt-1 block text-xs text-[#7b8781]">
             {item.rule?.organizer ?? "Organisateur"}

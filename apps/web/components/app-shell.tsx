@@ -11,6 +11,7 @@ import {
   ReceiptText,
   Settings,
   ShieldCheck,
+  Users,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -28,6 +29,7 @@ export type AppSection =
   | "achievements"
   | "profile"
   | "notifications"
+  | "admin-clients"
   | "admin"
   | "admin-invoices"
   | "admin-pricing";
@@ -126,6 +128,30 @@ export function AppShell({
   }, [email]);
 
   useEffect(() => {
+    if (!email) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+
+    function recordVisibleActivity() {
+      if (document.visibilityState !== "visible") return;
+      void fetch(`${apiUrl}/auth/me`, {
+        credentials: "include",
+        cache: "no-store",
+      }).catch(() => undefined);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") recordVisibleActivity();
+    }
+
+    const interval = window.setInterval(recordVisibleActivity, 60_000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [email]);
+
+  useEffect(() => {
     if (!mobileOpen) return;
 
     const trigger = mobileMenuButtonRef.current;
@@ -202,6 +228,15 @@ export function AppShell({
               <p className="px-3 pb-2 text-[10px] font-bold uppercase text-white/45">
                 Administration
               </p>
+              <SidebarLink
+                item={{
+                  id: "admin-clients",
+                  href: "/admin/clients",
+                  label: "Clients",
+                  icon: Users,
+                }}
+                active={active === "admin-clients"}
+              />
               <SidebarLink
                 item={{
                   id: "admin",
@@ -362,6 +397,16 @@ export function AppShell({
                   <p className="px-3 pb-2 text-[10px] font-bold uppercase text-white/45">
                     Administration
                   </p>
+                  <SidebarLink
+                    item={{
+                      id: "admin-clients",
+                      href: "/admin/clients",
+                      label: "Clients",
+                      icon: Users,
+                    }}
+                    active={active === "admin-clients"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                   <SidebarLink
                     item={{
                       id: "admin",

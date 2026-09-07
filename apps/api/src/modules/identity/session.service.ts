@@ -13,6 +13,7 @@ const csrfLifetimeSeconds = 60 * 60;
 const sessionTokenBytes = 32;
 const sessionTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const csrfTokenPattern = /^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/;
+const sessionActivityWriteIntervalMs = 60_000;
 
 export type SessionUser = Readonly<{
   id: string;
@@ -128,14 +129,16 @@ export class SessionService {
     const maxAgeSeconds = admin
       ? readAdminSessionLifetimeSeconds()
       : userSessionLifetimeSeconds;
-    const expiresAt = new Date(Date.now() + maxAgeSeconds * 1000);
-    const mfaVerifiedAt = admin ? new Date() : null;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + maxAgeSeconds * 1000);
+    const mfaVerifiedAt = admin ? now : null;
     const session = await this.prisma.userSession.create({
       data: {
         userId,
         tokenHash: this.hashToken(cookieValue),
         expiresAt,
         mfaVerifiedAt,
+        lastSeenAt: now,
       },
       include: {
         user: { select: { id: true, email: true, role: true } },
@@ -176,10 +179,11 @@ export class SessionService {
       },
     });
 
+    const now = new Date();
     if (
       !session ||
       session.revokedAt !== null ||
-      session.expiresAt.getTime() <= Date.now() ||
+      session.expiresAt.getTime() <= now.getTime() ||
       !session.user.emailVerifiedAt ||
       session.user.accountDeletedAt ||
       (session.user.role === "ADMIN" &&
@@ -188,6 +192,31 @@ export class SessionService {
           !session.user.mfaSecretEncrypted))
     ) {
       return null;
+    }
+
+    if (
+      !session.lastSeenAt ||
+      session.lastSeenAt.getTime() <=
+        now.getTime() - sessionActivityWriteIntervalMs
+    ) {
+      await this.prisma.userSession
+        .updateMany({
+          where: {
+            id: session.id,
+            revokedAt: null,
+            expiresAt: { gt: now },
+            OR: [
+              { lastSeenAt: null },
+              {
+                lastSeenAt: {
+                  lte: new Date(now.getTime() - sessionActivityWriteIntervalMs),
+                },
+              },
+            ],
+          },
+          data: { lastSeenAt: now },
+        })
+        .catch(() => undefined);
     }
 
     return {

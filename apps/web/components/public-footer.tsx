@@ -37,11 +37,11 @@ export function PublicFooter() {
         <div>
           <Brand />
           <p className="mt-4 max-w-xs text-sm leading-6 text-[#66736d]">
-            Le service qui transforme vos factures en dossiers de remboursement
-            simples et suivis.
+            Le service qui vous aide à constituer vos dossiers de remboursement
+            de SMS surtaxés liés aux jeux-concours.
           </p>
           <p className="mt-5 text-sm font-semibold text-[#17211d]">
-            contact.lydoc@gmail.com
+            contact@lydoc.fr
           </p>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">

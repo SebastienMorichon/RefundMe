@@ -144,6 +144,7 @@ model User {
 
   @@index([emailVerifiedAt, createdAt])
   @@index([accountDeletedAt])
+  @@index([role, accountDeletedAt, createdAt])
 }
 
 model UserSession {
@@ -153,12 +154,14 @@ model UserSession {
   expiresAt     DateTime
   revokedAt     DateTime?
   mfaVerifiedAt DateTime?
+  lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt, expiresAt])
   @@index([expiresAt])
+  @@index([lastSeenAt])
 }
 
 model IdentityToken {
@@ -372,6 +375,8 @@ model AdministrativeCase {
   generatedPackets GeneratedPacket[]
   postalShipment   PostalShipment?
   notifications    NotificationDelivery[]
+
+  @@index([ownerId, status])
 }
 
 model CaseDocument {

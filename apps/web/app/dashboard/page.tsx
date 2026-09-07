@@ -42,27 +42,27 @@ type LoadState = "loading" | "ready" | "offline";
 type MetricTone = "mint" | "coral" | "amber" | "rose";
 
 const heroSteps = [
-  { number: "1", label: "Facture analysée", tone: "mint" },
-  { number: "2", label: "Dossier créé", tone: "amber" },
-  { number: "3", label: "Dossier envoyé", tone: "coral" },
+  { number: "1", label: "SMS+ détectés", tone: "mint" },
+  { number: "2", label: "Dossier préparé", tone: "amber" },
+  { number: "3", label: "Demande envoyée", tone: "coral" },
 ] as const;
 
 const progressSteps = [
   {
-    title: "Facture analysée",
-    description: "Le montant récupérable est identifié.",
+    title: "SMS+ détectés",
+    description: "Les frais de participation sont identifiés sur la facture.",
   },
   {
-    title: "Dossier créé",
-    description: "Vos pièces sont réunies et vérifiées.",
+    title: "Dossier préparé",
+    description: "Les justificatifs prévus par le règlement sont réunis.",
   },
   {
-    title: "Dossier envoyé",
-    description: "La demande est transmise à l’organisme.",
+    title: "Demande envoyée",
+    description: "Le dossier est transmis à l’organisateur du jeu.",
   },
   {
-    title: "Remboursement",
-    description: "Le montant est versé sur votre compte.",
+    title: "Remboursement confirmé",
+    description: "Vous confirmez la réception du remboursement.",
   },
 ] as const;
 
@@ -166,7 +166,7 @@ export default function DashboardPage() {
               href="/documents?new=1"
               className="primary-button min-h-11 w-full px-5 text-sm shadow-[0_10px_24px_rgba(8,122,85,0.18)] sm:w-auto"
             >
-              Analyser une facture <Upload size={16} />
+              Analyser une facture mobile <Upload size={16} />
             </a>
           ) : null}
           <a
@@ -196,15 +196,15 @@ export default function DashboardPage() {
                 id="dashboard-welcome-title"
                 className="max-w-[430px] text-[30px] font-black leading-[1.08] tracking-[-0.025em] text-[#142a22] sm:text-[34px] lg:text-[36px]"
               >
-                Bienvenue sur votre{" "}
+                Pilotez vos dossiers de remboursement de{" "}
                 <span className="text-[#07865e] underline decoration-[#f1ad2b] decoration-[3px] underline-offset-[5px]">
-                  tableau de bord
+                  SMS+
                 </span>
               </h1>
               <p className="mt-5 max-w-[430px] text-sm leading-6 text-[#708078]">
-                Lydoc s’occupe de vos démarches.
+                Lydoc repère les SMS surtaxés de vos jeux-concours.
                 <br />
-                Suivez l’avancement de vos dossiers en toute simplicité.
+                Suivez chaque demande, de la facture au remboursement confirmé.
               </p>
             </div>
 
@@ -219,7 +219,7 @@ export default function DashboardPage() {
                 className="pointer-events-none absolute left-1/2 top-1/2 h-auto w-[600px] max-w-none -translate-x-1/2 -translate-y-1/2 select-none sm:w-[720px] lg:left-[53%] lg:w-[700px] xl:w-[760px]"
               />
               <ol
-                aria-label="Les trois étapes de votre démarche"
+                aria-label="Les trois étapes de votre demande de remboursement de SMS surtaxés"
                 className="absolute left-[23%] right-[20%] top-[37%] grid grid-cols-3 gap-1 before:absolute before:left-[16%] before:right-[16%] before:top-[15px] before:border-t before:border-dashed before:border-[#559381] sm:left-[26%] sm:right-[23%] sm:top-[39%]"
               >
                 {heroSteps.map((step) => (
@@ -247,7 +247,7 @@ export default function DashboardPage() {
           aria-label="Indicateurs principaux"
         >
           <DashboardMetric
-            label="Dossiers en cours"
+            label="Dossiers SMS+ en cours"
             value={String(activeCases.length)}
             detail="Voir mes dossiers"
             href="/cases"
@@ -255,7 +255,7 @@ export default function DashboardPage() {
             tone="mint"
           />
           <DashboardMetric
-            label="Montants identifiés"
+            label="Frais SMS+ identifiés"
             value={formatCents(stats.detectedCents)}
             detail={
               documentsPageEnabled ? "Voir les analyses" : "Voir mes dossiers"
@@ -265,7 +265,7 @@ export default function DashboardPage() {
             tone="coral"
           />
           <DashboardMetric
-            label="Dossiers envoyés"
+            label="Demandes envoyées"
             value={String(sentCases)}
             detail="Voir l’historique"
             href="/cases"
@@ -292,7 +292,7 @@ export default function DashboardPage() {
                 id="recent-cases-title"
                 className="text-[17px] font-extrabold text-[#1a2822]"
               >
-                Mes dossiers récents
+                Mes dossiers de remboursement récents
               </h2>
               <a
                 href="/cases"
@@ -319,19 +319,19 @@ export default function DashboardPage() {
                     className="h-[94px] w-auto object-contain"
                   />
                   <h3 className="mt-2 text-sm font-extrabold text-[#1b2a23]">
-                    Aucun dossier pour le moment
+                    Aucun dossier SMS+ pour le moment
                   </h3>
                   <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#738078]">
                     {documentsPageEnabled
-                      ? "Analysez une facture pour détecter vos premiers frais remboursables."
-                      : "Vos démarches apparaîtront ici dès qu’un dossier sera disponible."}
+                      ? "Analysez une facture mobile pour détecter vos premiers SMS+ potentiellement remboursables."
+                      : "Vos demandes de remboursement apparaîtront ici dès qu’un dossier sera disponible."}
                   </p>
                   {documentsPageEnabled ? (
                     <a
                       href="/documents?new=1"
                       className="primary-button mt-4 min-h-10 px-4 text-xs"
                     >
-                      Analyser une facture <Upload size={14} />
+                      Analyser une facture mobile <Upload size={14} />
                     </a>
                   ) : null}
                 </div>
@@ -456,16 +456,16 @@ function CaseProgressPanel({ item }: { item: CaseSummary | null }) {
             id="case-progress-title"
             className="text-[17px] font-extrabold text-[#1a2822]"
           >
-            Progression d’un dossier
+            Progression d’un remboursement SMS+
           </h2>
           <p className="mt-1 text-[11px] leading-5 text-[#78847e]">
-            Suivez chaque étape, de la facture au versement.
+            Suivez chaque étape, des SMS détectés au remboursement confirmé.
           </p>
           <p className="mt-16 text-sm font-extrabold text-[#1b2a23]">
             Votre parcours commence ici
           </p>
           <p className="mt-1 text-xs leading-5 text-[#738078]">
-            Une première analyse suffit pour démarrer votre suivi.
+            Analysez une facture mobile pour rechercher vos SMS surtaxés.
           </p>
         </div>
         <Image
@@ -492,10 +492,10 @@ function CaseProgressPanel({ item }: { item: CaseSummary | null }) {
           id="case-progress-title"
           className="text-[17px] font-extrabold text-[#1a2822]"
         >
-          Progression d’un dossier
+          Progression d’un remboursement SMS+
         </h2>
         <p className="mt-1 text-[11px] leading-5 text-[#78847e]">
-          Suivez chaque étape, de la facture au versement.
+          Suivez chaque étape, des SMS détectés au remboursement confirmé.
         </p>
       </div>
 
@@ -581,17 +581,19 @@ function ReassuranceStrip() {
     {
       title: "Sécurisé",
       description:
-        "Vos documents sont protégés et traités en toute confidentialité.",
+        "Vos factures mobiles et justificatifs sont protégés et chiffrés.",
       icon: ShieldCheck,
     },
     {
       title: "Simple",
-      description: "Lydoc s’occupe des formalités, à chaque étape.",
+      description:
+        "Lydoc vous guide pour constituer un dossier conforme au règlement du jeu.",
       icon: Smile,
     },
     {
       title: "Accompagné",
-      description: "Notre équipe reste disponible quand vous en avez besoin.",
+      description:
+        "Notre équipe reste disponible pour vos demandes de remboursement SMS+.",
       icon: Headphones,
     },
   ];

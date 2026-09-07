@@ -307,6 +307,7 @@ test("stores only a keyed session-token hash and reloads the current database ro
 
   assert.match(created.cookieValue, /^[A-Za-z0-9_-]{43}$/);
   assert.match(stored.tokenHash, /^[a-f0-9]{64}$/);
+  assert.ok(stored.lastSeenAt instanceof Date);
   assert.notEqual(stored.tokenHash, created.cookieValue);
   assert.deepEqual((await sessions.readCookieValue(created.cookieValue)).user, {
     id: "user-1",

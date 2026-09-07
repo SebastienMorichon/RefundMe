@@ -14,11 +14,14 @@ import { PrismaUserRepository } from "./prisma-user.repository";
 import { ProfileController } from "./profile.controller";
 import { SessionService } from "./session.service";
 import { PersistentAuthBudgetService } from "./persistent-auth-budget.service";
+import { AdminClientsController } from "./admin-clients.controller";
+import { AdminClientsService } from "./admin-clients.service";
 
 @Module({
-  controllers: [IdentityController, ProfileController],
+  controllers: [AdminClientsController, IdentityController, ProfileController],
   providers: [
     AccountDataRightsService,
+    AdminClientsService,
     AdminGuard,
     AdminMfaService,
     AuthGuard,

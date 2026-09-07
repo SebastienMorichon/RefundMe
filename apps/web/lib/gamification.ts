@@ -100,38 +100,42 @@ export function buildAchievements(
   return [
     {
       id: "FIRST_ANALYSIS",
-      title: "Première analyse",
-      description: "Une facture a été analysée avec succès.",
+      title: "Première facture analysée",
+      description:
+        "Une facture mobile a été analysée pour rechercher des SMS+.",
       earned: analyzedDocuments.length > 0,
     },
     {
       id: "FIRST_CASE",
-      title: "Premier dossier",
-      description: "Un remboursement potentiel a été identifié.",
+      title: "Premier dossier SMS+",
+      description: "Des SMS+ potentiellement remboursables ont été identifiés.",
       earned: cases.length > 0,
     },
     {
       id: "CASE_READY",
       title: "Dossier complet",
-      description: "Toutes les pièces d’un dossier ont été réunies.",
+      description:
+        "Les pièces exigées pour une demande de remboursement ont été réunies.",
       earned: hasReadyCase,
     },
     {
       id: "FIRST_SEND",
       title: "Premier envoi",
-      description: "Un dossier est prêt à être transmis ou a été envoyé.",
+      description:
+        "Un dossier de remboursement SMS+ est prêt à être transmis ou a été envoyé.",
       earned: hasSentCase,
     },
     {
       id: "FIRST_REFUND",
       title: "Premier remboursement",
-      description: "Un remboursement reçu a été confirmé.",
+      description: "La réception d’un remboursement de SMS+ a été confirmée.",
       earned: cases.some((item) => item.status === "REFUNDED"),
     },
     {
       id: "SECURE_ARCHIVE",
-      title: "Dossier organisé",
-      description: "Trois documents sont conservés dans l’espace sécurisé.",
+      title: "Justificatifs organisés",
+      description:
+        "Trois documents utiles à vos dossiers sont conservés dans l’espace sécurisé.",
       earned: documents.length >= 3,
     },
   ];

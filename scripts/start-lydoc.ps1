@@ -86,7 +86,7 @@ DATABASE_URL=postgresql://lydoc:lydoc@localhost:5432/lydoc
 APP_URL=http://localhost:3000
 API_URL=http://localhost:3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false
+NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=true
 TRUST_PROXY=false
 SESSION_SECRET=local-dev-session-secret-change-me-please
 DOCUMENT_ENCRYPTION_SECRET=local-dev-document-secret-change-me-please
@@ -115,7 +115,7 @@ Set-DefaultEnv "DATABASE_URL" "postgresql://lydoc:lydoc@localhost:5432/lydoc"
 Set-DefaultEnv "APP_URL" "http://localhost:3000"
 Set-DefaultEnv "API_URL" "http://localhost:3001"
 Set-DefaultEnv "NEXT_PUBLIC_API_URL" "http://localhost:3001"
-Set-DefaultEnv "NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED" "false"
+Set-DefaultEnv "NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED" "true"
 Set-DefaultEnv "TRUST_PROXY" "false"
 Set-DefaultEnv "SESSION_SECRET" "local-dev-session-secret-change-me-please"
 Set-DefaultEnv "DOCUMENT_ENCRYPTION_SECRET" "local-dev-document-secret-change-me-please"

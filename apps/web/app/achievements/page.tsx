@@ -106,9 +106,9 @@ export default function AchievementsPage() {
     >
       <div className="page-container py-7 sm:py-9">
         <PageHeading
-          eyebrow="Gamification utile"
-          title="Votre progression"
-          description="Chaque réussite correspond à une étape réellement accomplie dans vos démarches."
+          eyebrow="Remboursement des SMS surtaxés"
+          title="Progression de vos remboursements SMS+"
+          description="Visualisez les étapes déjà accomplies, de l’analyse de votre facture mobile jusqu’aux remboursements que vous avez confirmés."
         />
 
         {error ? (
@@ -132,7 +132,7 @@ export default function AchievementsPage() {
               <ReadinessRing value={progress} size="large" />
               <div>
                 <p className="text-xs font-extrabold text-[#24332c]">
-                  Parcours {stats.level.toLowerCase()}
+                  Parcours remboursement {stats.level.toLowerCase()}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-[#7b8781]">
                   {earnedCount} réussite{earnedCount > 1 ? "s" : ""} sur{" "}
@@ -142,11 +142,11 @@ export default function AchievementsPage() {
             </div>
             <div className="grid grid-cols-2 border-b border-[#e3e9e6] lg:border-b-0 lg:border-r">
               <ProgressMetric
-                label="Potentiel identifié"
+                label="Frais SMS+ identifiés"
                 value={formatCents(stats.detectedCents)}
               />
               <ProgressMetric
-                label="Réellement récupéré"
+                label="Remboursements confirmés"
                 value={formatCents(stats.refundedCents)}
                 positive
               />
@@ -182,11 +182,11 @@ export default function AchievementsPage() {
           <div className="flex items-center justify-between border-b border-[#e3e9e6] px-5 py-4 sm:px-6">
             <div>
               <h2 className="text-sm font-extrabold text-[#24332c]">
-                Jalons du parcours
+                Étapes de vos dossiers SMS+
               </h2>
               <p className="mt-1 text-xs text-[#7b8781]">
-                Les réussites verrouillées indiquent simplement la prochaine
-                étape possible.
+                Chaque jalon correspond à une action utile pour constituer et
+                suivre vos demandes de remboursement.
               </p>
             </div>
             <Award size={18} className="text-[#087a55]" />
@@ -214,9 +214,10 @@ export default function AchievementsPage() {
                   Une progression sans pression
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#66736d]">
-                  Lydoc ne récompense ni les dépenses ni la fréquence de
-                  connexion. Seules les démarches utiles et les remboursements
-                  confirmés font avancer ce parcours.
+                  Lydoc ne récompense ni le nombre de SMS envoyés ni la
+                  fréquence de connexion. Seules les étapes utiles de vos
+                  dossiers et les remboursements confirmés font avancer ce
+                  parcours.
                 </p>
               </div>
             </div>
@@ -228,8 +229,8 @@ export default function AchievementsPage() {
               Continuer à avancer
             </h2>
             <p className="mt-2 text-xs leading-5 text-[#7b8781]">
-              Consultez vos dossiers pour retrouver la prochaine action
-              concrète.
+              Consultez vos dossiers SMS+ pour retrouver le prochain
+              justificatif ou la prochaine action demandée.
             </p>
             <a
               href="/cases"

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import {
   ArrowRight,
   Check,
@@ -16,38 +17,44 @@ import {
 import { PublicFooter } from "../components/public-footer";
 import { PublicHeader } from "../components/public-header";
 
+export const metadata: Metadata = {
+  title: "Remboursement des SMS surtaxés de jeux-concours",
+  description:
+    "Lydoc analyse votre facture mobile, repère les SMS surtaxés liés aux jeux-concours et prépare gratuitement un dossier conforme au règlement.",
+};
+
 const steps = [
   {
     number: "01",
     icon: Upload,
-    title: "Déposez votre facture",
+    title: "Déposez votre facture mobile",
     description:
-      "Déposez la facture complète au format PDF. Aucune pièce d’identité ni aucun RIB ne sont demandés à l’inscription.",
+      "Ajoutez la facture détaillée complète au format PDF, celle où apparaissent les SMS+ facturés pour vos jeux-concours.",
   },
   {
     number: "02",
     icon: FileSearch,
-    title: "Lydoc vérifie le règlement",
+    title: "Lydoc vérifie vos SMS+",
     description:
-      "La facture est lue et comparée aux conditions du jeu validées par notre équipe.",
+      "Les SMS surtaxés sont repérés puis rapprochés du règlement du jeu validé par notre équipe.",
   },
   {
     number: "03",
     icon: Send,
-    title: "Votre dossier est préparé",
+    title: "Votre demande est préparée",
     description:
-      "Vous complétez uniquement les pièces exigées, puis téléchargez gratuitement le dossier prêt à imprimer et à envoyer.",
+      "Vous ajoutez uniquement les justificatifs exigés, puis téléchargez gratuitement votre dossier conforme, prêt à envoyer.",
   },
 ];
 
 const faqs = [
   [
     "Combien coûte Lydoc ?",
-    "Pendant la phase de lancement, l’analyse, la constitution et le téléchargement du dossier sont entièrement gratuits. L’envoi postal pris en charge sera proposé ultérieurement.",
+    "Pendant la phase de lancement, l’analyse de vos SMS+, la constitution et le téléchargement du dossier sont entièrement gratuits. L’envoi postal pris en charge sera proposé ultérieurement.",
   ],
   [
-    "Dois-je envoyer mon RIB à l’inscription ?",
-    "Non. Le RIB et la pièce d’identité ne sont jamais demandés pour créer votre compte. Ils ne le sont que si le règlement applicable les exige pour constituer votre dossier.",
+    "Quels SMS surtaxés puis-je faire analyser ?",
+    "Lydoc recherche les SMS+ facturés après une participation à un jeu-concours. Ils doivent apparaître sur votre facture mobile détaillée et le règlement du jeu doit prévoir une demande de remboursement.",
   ],
   [
     "Lydoc garantit-il le remboursement ?",
@@ -66,29 +73,38 @@ export default function HomePage() {
           <div className="page-container grid min-h-[650px] items-center gap-8 py-14 lg:grid-cols-[0.82fr_1.18fr] lg:py-10">
             <div className="rise-in relative z-10 max-w-[600px]">
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#b9dbc9] bg-white px-4 py-2 text-xs font-extrabold text-[#087a55] shadow-sm">
-                <Sparkles size={15} aria-hidden="true" /> Analyse gratuite de
-                votre première facture
+                <Sparkles size={15} aria-hidden="true" /> Jeux-concours :
+                remboursement des SMS+
               </div>
               <h1 className="max-w-[610px] text-4xl font-extrabold leading-[1.06] text-[#17211d] sm:text-5xl lg:text-[58px]">
-                La paperasse devient enfin <span className="relative text-[#087a55]">plus simple<span className="absolute -bottom-1 left-0 h-2 w-full rounded-full bg-[#f4b942]/55" aria-hidden="true" /></span>.
+                Préparez votre dossier de remboursement de{" "}
+                <span className="relative text-[#087a55]">
+                  SMS surtaxés
+                  <span
+                    className="absolute -bottom-1 left-0 h-2 w-full rounded-full bg-[#f4b942]/55"
+                    aria-hidden="true"
+                  />
+                </span>
+                .
               </h1>
               <p className="mt-6 max-w-[560px] text-base leading-7 text-[#4f5d78] sm:text-lg sm:leading-8">
-                Lydoc lit votre facture, vérifie les règlements applicables et
-                constitue votre dossier. Vous le téléchargez gratuitement, prêt
-                à être imprimé et envoyé.
+                Vous avez participé à un jeu-concours par SMS+ ? Lydoc analyse
+                votre facture mobile, vérifie si le règlement permet une demande
+                de remboursement et constitue gratuitement votre dossier prêt à
+                envoyer.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="/inscription"
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#087a55] px-6 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_#065d42] transition-transform hover:-translate-y-0.5 hover:bg-[#066344]"
                 >
-                  Analyser ma facture <ArrowRight size={17} />
+                  Analyser ma facture mobile <ArrowRight size={17} />
                 </a>
                 <a
                   href="#fonctionnement"
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#bdc9d8] bg-white px-5 py-3 text-sm font-extrabold text-[#17211d] hover:border-[#087a55]"
                 >
-                  Voir comment ça marche
+                  Comprendre les 3 étapes
                 </a>
               </div>
               <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-[#4f5d78]">
@@ -101,15 +117,15 @@ export default function HomePage() {
                   chiffrés
                 </span>
                 <span className="inline-flex items-center gap-2">
-                  <ReceiptText size={16} className="text-[#16875b]" /> Aucun
-                  paiement à l’analyse
+                  <ReceiptText size={16} className="text-[#16875b]" /> Dossier
+                  PDF gratuit
                 </span>
               </div>
             </div>
             <div className="rise-in relative min-h-[360px] lg:min-h-[570px]">
               <Image
                 src="/illustrations/lydi-hero.png"
-                alt="Lydi guide une facture vers un dossier complet"
+                alt="Lydi transforme une facture mobile en dossier de remboursement de SMS surtaxés"
                 fill
                 priority
                 sizes="(max-width: 1024px) 100vw, 58vw"
@@ -125,9 +141,9 @@ export default function HomePage() {
         >
           <div className="page-container grid grid-cols-2 divide-x divide-[#e2e8f0] py-5 md:grid-cols-4">
             {[
-              ["20 Mo", "facture au format PDF"],
-              ["2 minutes", "pour connaître le potentiel"],
-              ["0 €", "pour analyser la facture"],
+              ["1 PDF", "votre facture mobile détaillée"],
+              ["SMS+", "de jeux-concours détectés"],
+              ["0 €", "pour l’analyse et le dossier"],
               ["À la demande", "aucun abonnement"],
             ].map(([value, label]) => (
               <div key={label} className="px-3 py-2 text-center sm:px-6">
@@ -146,17 +162,25 @@ export default function HomePage() {
         >
           <div className="page-container">
             <div className="max-w-2xl">
-              <p className="eyebrow">Simple par conception</p>
+              <p className="eyebrow">En 3 étapes</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d] sm:text-4xl">
-                De la facture au dossier, sans vous perdre dans les règles.
+                De vos SMS surtaxés au dossier conforme, sans vous perdre dans
+                les règles.
               </h2>
               <p className="mt-4 text-base leading-7 text-[#5d6881]">
-                Vous voyez la valeur du service avant de fournir les documents
-                sensibles nécessaires à la demande.
+                Vous commencez avec votre facture mobile. Les autres
+                justificatifs ne sont demandés que si le règlement du
+                jeu-concours les exige.
               </p>
             </div>
             <div className="relative mt-8 aspect-[1.9/1] w-full sm:aspect-[2.5/1] lg:aspect-[3.1/1]">
-              <Image src="/illustrations/lydi-steps.png" alt="Lydi dépose, analyse et prépare une facture" fill sizes="100vw" className="object-contain" />
+              <Image
+                src="/illustrations/lydi-steps.png"
+                alt="Lydi analyse les SMS surtaxés et prépare une demande de remboursement"
+                fill
+                sizes="100vw"
+                className="object-contain"
+              />
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               {steps.map((step) => {
@@ -190,20 +214,20 @@ export default function HomePage() {
         <section className="border-y border-[#dce5e0] bg-[#f3f6fa] py-20 sm:py-24">
           <div className="page-container grid items-center gap-12 lg:grid-cols-[0.78fr_1.22fr]">
             <div>
-              <p className="eyebrow">Tout au même endroit</p>
+              <p className="eyebrow">Vos demandes au même endroit</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d] sm:text-4xl">
-                Un espace qui vous dit quoi faire, et quand.
+                Suivez chaque dossier, du SMS détecté à la réponse.
               </h2>
               <p className="mt-5 text-base leading-7 text-[#5d6881]">
-                Montant estimé, pièces manquantes, progression du dossier :
-                chaque information utile reste visible sans jargon
-                administratif.
+                Montant estimatif récupérable, justificatifs manquants,
+                progression de la demande : vous savez exactement quoi faire
+                pour chaque jeu-concours.
               </p>
               <ul className="mt-7 grid gap-4 text-sm font-semibold text-[#526058]">
                 {[
-                  "Suivi de chaque dossier en temps réel",
-                  "Pièces demandées uniquement si nécessaire",
-                  "Historique clair de vos documents et analyses",
+                  "Montant estimatif récupérable pour chaque jeu",
+                  "Pièces exactes demandées par le règlement",
+                  "Historique clair de vos SMS+ et de vos dossiers",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3">
                     <span className="grid h-6 w-6 place-items-center rounded-md bg-[#e8f7f0] text-[#16875b]">
@@ -217,7 +241,7 @@ export default function HomePage() {
                 href="/inscription"
                 className="mt-8 inline-flex items-center gap-2 text-sm font-extrabold text-[#087a55] hover:text-[#066344]"
               >
-                Découvrir mon espace <ChevronRight size={17} />
+                Créer mon premier dossier <ChevronRight size={17} />
               </a>
             </div>
 
@@ -242,7 +266,7 @@ export default function HomePage() {
                     <span className="rounded bg-white/10 px-2 py-2 text-white">
                       Vue d’ensemble
                     </span>
-                    <span className="px-2 py-2">Mes documents</span>
+                    <span className="px-2 py-2">Mes factures</span>
                     <span className="px-2 py-2">Mes dossiers</span>
                     <span className="px-2 py-2">Remboursements</span>
                   </div>
@@ -261,7 +285,7 @@ export default function HomePage() {
                   </div>
                   <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                     {[
-                      ["14,85 €", "À récupérer"],
+                      ["14,85 €", "Estimé récupérable"],
                       ["2", "Dossiers"],
                       ["1", "Envoyé"],
                       ["32,40 €", "Remboursé"],
@@ -287,11 +311,11 @@ export default function HomePage() {
                   <div className="mt-3 divide-y divide-[#e6ebf1] border-y border-[#e6ebf1]">
                     {[
                       [
-                        "Facture Orange analysée",
-                        "14,85 € détectés",
+                        "Facture mobile analysée",
+                        "4 SMS+ détectés",
                         "Aujourd’hui",
                       ],
-                      ["Dossier M6 prêt", "Pièces complètes", "Hier"],
+                      ["Dossier jeu M6 prêt", "Pièces complètes", "Hier"],
                       ["Remboursement reçu", "24,90 €", "28 juin"],
                     ].map(([title, info, date]) => (
                       <div
@@ -315,16 +339,15 @@ export default function HomePage() {
         <section className="bg-[#17211d] py-20 text-white sm:py-24">
           <div className="page-container grid gap-12 lg:grid-cols-[1fr_1.1fr] lg:items-center">
             <div>
-              <p className="eyebrow !text-[#82a3ff]">
-                Vos données restent les vôtres
-              </p>
+              <p className="eyebrow !text-[#82a3ff]">Vos factures protégées</p>
               <h2 className="mt-3 max-w-xl text-3xl font-extrabold leading-tight sm:text-4xl">
-                Des documents sensibles traités avec le sérieux qu’ils méritent.
+                Vos justificatifs de remboursement traités avec le sérieux
+                qu’ils méritent.
               </h2>
               <p className="mt-5 max-w-xl text-base leading-7 text-[#c2cede]">
-                Les documents sont chiffrés et leur accès est limité à la
-                préparation de votre dossier. Vous gardez le contrôle sur les
-                pièces transmises.
+                Votre facture mobile et vos documents sont chiffrés. Leur accès
+                est limité à l’analyse des SMS+ et à la préparation de votre
+                dossier.
               </p>
               <a
                 href="/securite"
@@ -348,12 +371,12 @@ export default function HomePage() {
                 [
                   FileCheck2,
                   "Traçabilité",
-                  "Chaque document reste associé au bon dossier.",
+                  "Chaque facture reste associée au bon jeu-concours.",
                 ],
                 [
                   ReceiptText,
                   "Collecte minimale",
-                  "RIB et identité uniquement lorsque le règlement l’exige.",
+                  "RIB et identité uniquement si le règlement du jeu l’exige.",
                 ],
               ].map(([Icon, title, description]) => {
                 const SecurityIcon = Icon as typeof LockKeyhole;
@@ -374,14 +397,14 @@ export default function HomePage() {
         <section id="tarifs" className="scroll-mt-20 bg-white py-20 sm:py-24">
           <div className="page-container grid gap-12 lg:grid-cols-[1fr_0.9fr] lg:items-center">
             <div className="max-w-xl">
-              <p className="eyebrow">Un tarif lisible</p>
+              <p className="eyebrow">Gratuit pendant le lancement</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d] sm:text-4xl">
-                Vous analysez d’abord. Vous choisissez ensuite.
+                Analysez vos SMS+ et téléchargez votre dossier conforme.
               </h2>
               <p className="mt-5 text-base leading-7 text-[#5d6881]">
-                La création du compte, l’analyse et le dossier complet sont
-                gratuits. Une formule accompagnée est en préparation pour celles
-                et ceux qui souhaiteront nous confier l’envoi postal.
+                La création du compte, l’analyse de votre facture mobile et le
+                dossier de remboursement complet sont gratuits. Vous n’avez rien
+                à payer pour vérifier vos SMS surtaxés.
               </p>
             </div>
             <div className="grid gap-3">
@@ -389,7 +412,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-[#5d6881]">
-                      Dossier complet à télécharger
+                      Dossier de remboursement à télécharger
                     </p>
                     <p className="mt-1 text-4xl font-extrabold text-[#17211d]">
                       0 €
@@ -401,14 +424,15 @@ export default function HomePage() {
                 </div>
                 <div className="mt-6 border-t border-[#d5dde8] pt-6">
                   <p className="text-sm leading-6 text-[#5d6881]">
-                    Le PDF contient la lettre de demande et les pièces exigées
-                    par le règlement. Vous l’imprimez et l’envoyez vous-même.
+                    Le PDF contient votre lettre de demande et les justificatifs
+                    exigés par le règlement du jeu. Vous l’imprimez et l’envoyez
+                    vous-même.
                   </p>
                   <a
                     href="/inscription"
                     className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[#087a55]"
                   >
-                    Tester gratuitement <ArrowRight size={17} />
+                    Préparer mon dossier <ArrowRight size={17} />
                   </a>
                 </div>
               </div>
@@ -416,7 +440,7 @@ export default function HomePage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-extrabold text-[#17211d]">
-                      Impression et envoi par Lydoc
+                      Impression et envoi du dossier par Lydoc
                     </p>
                     <p className="mt-2 text-sm leading-6 text-[#66736d]">
                       Validation finale, impression, mise sous pli,
@@ -435,9 +459,9 @@ export default function HomePage() {
         <section className="border-y border-[#dce5e0] bg-[#f3f6fa] py-20 sm:py-24">
           <div className="page-container grid gap-12 lg:grid-cols-[0.65fr_1fr]">
             <div>
-              <p className="eyebrow">Questions fréquentes</p>
+              <p className="eyebrow">Remboursement des SMS+</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d]">
-                Les réponses avant de commencer.
+                Les réponses utiles avant de préparer votre dossier.
               </h2>
               <a
                 href="/faq"
@@ -467,20 +491,23 @@ export default function HomePage() {
         <section className="bg-white py-20 sm:py-24">
           <div className="page-container flex flex-col items-start justify-between gap-8 border-y border-[#dce5e0] py-12 md:flex-row md:items-center">
             <div className="max-w-2xl">
-              <p className="eyebrow">Votre facture peut déjà vous répondre</p>
+              <p className="eyebrow">
+                Votre facture mobile est le point de départ
+              </p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d]">
-                Découvrez son potentiel de remboursement.
+                Repérez vos SMS surtaxés et préparez votre demande.
               </h2>
               <p className="mt-3 text-sm leading-6 text-[#5d6881]">
-                Créez votre compte en quelques instants. RIB et pièce d’identité
-                ne sont pas nécessaires.
+                Créez votre compte, déposez votre facture PDF et découvrez si le
+                règlement du jeu permet de demander un remboursement. Aucun RIB
+                ni pièce d’identité ne sont nécessaires pour commencer.
               </p>
             </div>
             <a
               href="/inscription"
               className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-[#087a55] px-5 py-3 text-sm font-extrabold text-white hover:bg-[#066344]"
             >
-              Analyser ma facture <ArrowRight size={17} />
+              Analyser ma facture mobile <ArrowRight size={17} />
             </a>
           </div>
         </section>
