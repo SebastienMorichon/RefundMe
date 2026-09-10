@@ -1371,8 +1371,6 @@ export function postalExpenseClaimParagraphs(
   if (rates.length > 0) {
     paragraphs.push(`Le règlement prévoit ${joinFrench(rates)}.`);
   }
-  const calculated = postalExpenseClaimCostSentence(claim.calculatedCosts);
-  if (calculated) paragraphs.push(calculated);
   const limit = strictPostalExpenseLimitSentence(claim.terms.claimLimit);
   if (limit) paragraphs.push(limit);
   return paragraphs;
@@ -1450,23 +1448,6 @@ async function countAttachmentPages(attachments: PacketAttachment[]) {
     }
   }
   return total;
-}
-
-function postalExpenseClaimCostSentence(
-  costs: PacketPostalExpenseCosts | undefined,
-): string {
-  if (!costs || costs.totalCents === null) return "";
-  const details = [
-    costs.postageCents && costs.postageCents > 0
-      ? `affranchissement : ${formatEurosText(costs.postageCents)}`
-      : "",
-    costs.printingCents && costs.printingCents > 0
-      ? `impression : ${formatEurosText(costs.printingCents)} pour ${costs.printingPageCount} ${costs.printingPageCount > 1 ? "pages" : "page"}`
-      : "",
-  ].filter(Boolean);
-  return details.length > 0
-    ? `Ces frais d'envoi s'élèvent à ${formatEurosText(costs.totalCents)} (${details.join(" ; ")}).`
-    : "";
 }
 
 function reimbursementAmountBreakdownParagraph(

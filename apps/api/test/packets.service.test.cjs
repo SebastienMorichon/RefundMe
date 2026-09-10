@@ -178,6 +178,46 @@ test("calculates postal expense reimbursement from rule terms and packet pages",
   });
 });
 
+test("does not repeat calculated printing pages in postal expense paragraphs", () => {
+  const paragraphs = postalExpenseClaimParagraphs({
+    requested: true,
+    selectedAt: "2026-09-10T10:00:00.000Z",
+    terms: {
+      available: true,
+      appliesTo: "REFUND_REQUEST",
+      postage: {
+        reimbursable: true,
+        amountCents: null,
+        basis: "timbre au tarif économique en vigueur",
+      },
+      printing: {
+        reimbursable: true,
+        centsPerPage: 30,
+        maxPages: null,
+        basis: "0,30 EUR par page",
+      },
+      claimLimit: {
+        scope: "PER_HOUSEHOLD_PER_GAME",
+        strict: false,
+        details: "",
+      },
+      requestInstructions: "",
+      requiredProofs: [],
+      sourceReference: "Article 8",
+    },
+    calculatedCosts: {
+      postageCents: 152,
+      printingCents: 210,
+      printingCentsPerPage: 30,
+      printingPageCount: 7,
+      totalCents: 362,
+    },
+  });
+
+  assert.doesNotMatch(paragraphs.join(" "), /7 pages/);
+  assert.doesNotMatch(paragraphs.join(" "), /3,62 euros/);
+});
+
 test("uses natural singular and plural wording for detected SMS", () => {
   assert.equal(
     smsParticipationParagraph([
