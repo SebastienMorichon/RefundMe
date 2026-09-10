@@ -14,7 +14,7 @@
   "dependencies": {
     "@lydoc/application": "workspace:*",
     "pdf-lib": "^1.17.1",
-    "sharp": "^0.35.0"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
