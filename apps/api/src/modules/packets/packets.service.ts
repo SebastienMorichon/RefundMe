@@ -88,6 +88,7 @@ type LetterFlow = {
   document: PDFDocument;
   page: PDFPage;
   cursor: number;
+  scale: number;
   regular: PDFFont;
   bold: PDFFont;
   ink: ReturnType<typeof rgb>;
@@ -839,19 +840,15 @@ export async function createCasePacket(
 ): Promise<Uint8Array> {
   assertPacketAggregateLimits(input.attachments ?? []);
   const document = await PDFDocument.create();
-  const regular = await document.embedFont(StandardFonts.Helvetica);
-  const bold = await document.embedFont(StandardFonts.HelveticaBold);
   const postalExpenseClaim = await addCalculatedPostalExpenseCosts(
     input.postalExpenseClaim,
     input.attachments ?? [],
     input.defaultPostageCents ?? DEFAULT_PRICING.greenLetterCents,
   );
   const { postalExpenseClaim: _postalExpenseClaim, ...letterInput } = input;
-  appendReimbursementLetter(
+  await appendReimbursementLetter(
     document,
     postalExpenseClaim ? { ...letterInput, postalExpenseClaim } : letterInput,
-    regular,
-    bold,
   );
 
   if (!input.preview) {
@@ -882,13 +879,37 @@ export async function createCasePacket(
   return bytes;
 }
 
-function appendReimbursementLetter(
+async function appendReimbursementLetter(
+  target: PDFDocument,
+  input: CreateCasePacketInput & {
+    postalExpenseClaim?: PacketPostalExpenseClaim;
+  },
+) {
+  for (const scale of [1, 0.92, 0.84, 0.76]) {
+    const candidate = await PDFDocument.create();
+    const regular = await candidate.embedFont(StandardFonts.Helvetica);
+    const bold = await candidate.embedFont(StandardFonts.HelveticaBold);
+    drawReimbursementLetter(candidate, input, regular, bold, scale);
+    if (candidate.getPageCount() !== 1) continue;
+
+    const [page] = await target.copyPages(candidate, [0]);
+    target.addPage(page);
+    return;
+  }
+
+  throw new BadRequestException(
+    "La lettre de remboursement ne peut pas tenir sur une seule page.",
+  );
+}
+
+function drawReimbursementLetter(
   document: PDFDocument,
   input: CreateCasePacketInput & {
     postalExpenseClaim?: PacketPostalExpenseClaim;
   },
   regular: PDFFont,
   bold: PDFFont,
+  scale: number,
 ) {
   const page = document.addPage([595.28, 841.89]);
   const ink = rgb(0.08, 0.08, 0.08);
@@ -929,7 +950,15 @@ function appendReimbursementLetter(
         ]
       : []),
   ];
-  const senderY = drawLetterAddressBlock(page, senderLines, 52, 782, 225, ink);
+  const senderY = drawLetterAddressBlock(
+    page,
+    senderLines,
+    52,
+    782,
+    225,
+    ink,
+    scale,
+  );
   const recipientY = drawLetterAddressBlock(
     page,
     recipientLines,
@@ -937,12 +966,13 @@ function appendReimbursementLetter(
     782,
     213,
     ink,
+    scale,
   );
-  const dateY = Math.min(senderY, recipientY, 688) - 22;
+  const dateY = Math.min(senderY, recipientY, 688) - 22 * scale;
   page.drawText(`Le ${formatLongDate(input.createdAt)}`, {
     x: 330,
     y: dateY,
-    size: 10.5,
+    size: 10.5 * scale,
     font: regular,
     color: ink,
   });
@@ -950,7 +980,8 @@ function appendReimbursementLetter(
   const flow: LetterFlow = {
     document,
     page,
-    cursor: dateY - 48,
+    cursor: dateY - 48 * scale,
+    scale,
     regular,
     bold,
     ink,
@@ -1043,12 +1074,16 @@ function appendReimbursementLetter(
 
   const closing =
     "Je vous remercie par avance de l'attention portée à ma demande et vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.";
-  ensureLetterSpace(flow, letterBlockHeight(closing, regular) + 82);
+  ensureLetterSpace(
+    flow,
+    letterBlockHeight(closing, regular, 10.5 * scale, 491, 15 * scale) +
+      82 * scale,
+  );
   drawLetterParagraph(flow, closing, { gapAfter: 24 });
   flow.page.drawText("Signature", {
     x: 390,
     y: flow.cursor,
-    size: 10.5,
+    size: 10.5 * scale,
     font: regular,
     color: grey,
   });
@@ -1056,8 +1091,8 @@ function appendReimbursementLetter(
     normalizePdfText(input.customerName || input.customerEmail),
     {
       x: 390,
-      y: flow.cursor - 42,
-      size: 10.5,
+      y: flow.cursor - 42 * scale,
+      size: 10.5 * scale,
       font: regular,
       color: ink,
     },
@@ -1158,18 +1193,24 @@ function drawLetterAddressBlock(
   y: number,
   width: number,
   color: ReturnType<typeof rgb>,
+  scale = 1,
 ): number {
   let cursor = y;
   for (const entry of entries) {
-    for (const line of wrapPdfText(entry.text, entry.font, 10.5, width)) {
+    for (const line of wrapPdfText(
+      entry.text,
+      entry.font,
+      10.5 * scale,
+      width,
+    )) {
       page.drawText(line, {
         x,
         y: cursor,
-        size: 10.5,
+        size: 10.5 * scale,
         font: entry.font,
         color,
       });
-      cursor -= 14;
+      cursor -= 14 * scale;
     }
   }
   return cursor;
@@ -1212,9 +1253,9 @@ function drawLetterParagraph(
   const font = options.font ?? flow.regular;
   const x = options.x ?? 52;
   const width = options.width ?? 491;
-  const size = options.size ?? 10.5;
-  const lineHeight = options.lineHeight ?? 15;
-  const gapAfter = options.gapAfter ?? 10;
+  const size = (options.size ?? 10.5) * flow.scale;
+  const lineHeight = (options.lineHeight ?? 15) * flow.scale;
+  const gapAfter = (options.gapAfter ?? 10) * flow.scale;
   const lines = wrapPdfText(text, font, size, width);
   ensureLetterSpace(flow, lines.length * lineHeight);
   for (const line of lines) {
@@ -1236,8 +1277,9 @@ function letterBlockHeight(
   font: PDFFont,
   size = 10.5,
   width = 491,
+  lineHeight = 15,
 ): number {
-  return wrapPdfText(text, font, size, width).length * 15;
+  return wrapPdfText(text, font, size, width).length * lineHeight;
 }
 
 function ensureLetterSpace(flow: LetterFlow, height: number) {

@@ -296,3 +296,82 @@ test("generates a final packet with attached document pages", async () => {
   );
   assert.equal(pdf.getAuthor(), "client@example.com");
 });
+
+test("keeps a detailed reimbursement letter to one page", async () => {
+  const supportingDocuments = await PDFDocument.create();
+  supportingDocuments.addPage([200, 200]);
+  supportingDocuments.addPage([200, 200]);
+  supportingDocuments.addPage([200, 200]);
+
+  const bytes = await createCasePacket({
+    caseId: "case-single-page-letter",
+    customerEmail: "sebastien.morichon@example.com",
+    customerName: "Sébastien Morichon",
+    customerAddress: "12 rue de la Participation, 75001 Paris, France",
+    customerPhone: "0686847233",
+    customerOperatorReference: "CLIENT-ORANGE-123456789",
+    organizer: "M6",
+    gameName: "COUPE DU MONDE FIFA 2026",
+    estimatedRecoverableCents: 297,
+    serviceFeeCents: 0,
+    documents: ["pieces-justificatives.pdf"],
+    requiredDocuments: [
+      { kind: "ORANGE_INVOICE", label: "Facture opérateur", required: true },
+      { kind: "IDENTITY_DOCUMENT", label: "Pièce d'identité", required: true },
+      { kind: "BANK_DETAILS", label: "RIB", required: true },
+    ],
+    ruleConstraints: {
+      reimbursementRecipient: "Service remboursement des jeux M6",
+      reimbursementAddress:
+        "M6 Interactions, Opération COUPE DU MONDE FIFA 2026, 89 avenue Charles-de-Gaulle, 92575 Neuilly-sur-Seine Cedex",
+      reimbursementMethod:
+        "virement bancaire sur le compte indiqué dans le RIB joint",
+      requiredLetterMentions: [],
+    },
+    postalExpenseClaim: {
+      requested: true,
+      selectedAt: "2026-09-10T10:00:00.000Z",
+      terms: {
+        available: true,
+        appliesTo: "REFUND_REQUEST",
+        postage: {
+          reimbursable: true,
+          amountCents: null,
+          basis: "timbre au tarif économique en vigueur",
+        },
+        printing: {
+          reimbursable: true,
+          centsPerPage: 30,
+          maxPages: null,
+          basis: "0,30 EUR par page",
+        },
+        claimLimit: {
+          scope: "PER_HOUSEHOLD_PER_GAME",
+          strict: false,
+          details: "",
+        },
+        requestInstructions: "Demande à joindre au courrier de participation.",
+        requiredProofs: [],
+        sourceReference: "Article 8",
+      },
+    },
+    smsCharges: [
+      { label: "SMS+ jeu", code: "74600", quantity: 3, amountCents: 297 },
+    ],
+    attachments: [
+      {
+        name: "pieces-justificatives.pdf",
+        kind: "ORANGE_INVOICE",
+        mimeType: "application/pdf",
+        bytes: await supportingDocuments.save(),
+      },
+    ],
+    defaultPostageCents: 152,
+    createdAt: new Date("2026-09-10T10:00:00Z"),
+    paidAt: null,
+    preview: false,
+  });
+
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 4);
+});
