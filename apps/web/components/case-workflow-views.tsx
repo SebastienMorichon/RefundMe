@@ -596,7 +596,7 @@ function ChoiceButton({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={selected}
-      className={`grid min-h-[104px] grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-4 rounded-md border-2 p-4 text-left transition-colors sm:px-5 ${disabled ? "cursor-not-allowed border-[#e0e6e3] bg-[#f8faf9] opacity-75" : selected ? "border-[#087a55] bg-[#f2f8f5]" : "border-[#d7dfe9] bg-white hover:border-[#9fc5b2]"}`}
+      className={`grid min-h-[104px] w-full min-w-0 grid-cols-[44px_minmax(0,1fr)] items-center gap-4 rounded-md border-2 p-4 text-left transition-colors sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:px-5 ${disabled ? "cursor-not-allowed border-[#e0e6e3] bg-[#f8faf9] opacity-75" : selected ? "border-[#087a55] bg-[#f2f8f5]" : "border-[#d7dfe9] bg-white hover:border-[#9fc5b2]"}`}
     >
       <span
         className={`grid h-11 w-11 place-items-center rounded-md ${disabled ? "bg-[#eef2f0] text-[#849089]" : selected ? "bg-[#087a55] text-white" : "bg-[#e9f5ef] text-[#087a55]"}`}
@@ -612,7 +612,7 @@ function ChoiceButton({
         </span>
       </span>
       <span
-        className={`max-w-[145px] text-right text-xs font-extrabold sm:text-sm ${disabled ? "text-[#66736d]" : "text-[#17211d]"}`}
+        className={`col-span-2 max-w-full text-left text-xs font-extrabold sm:col-span-1 sm:max-w-[145px] sm:text-right sm:text-sm ${disabled ? "text-[#66736d]" : "text-[#17211d]"}`}
       >
         {price}
       </span>

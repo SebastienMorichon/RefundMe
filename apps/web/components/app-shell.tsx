@@ -202,7 +202,7 @@ export function AppShell({
   }, [mobileOpen]);
 
   return (
-    <div className="min-h-screen bg-[#eaf3ee] text-[#16221d]">
+    <div className="min-h-screen w-full min-w-0 max-w-full overflow-x-clip bg-[#eaf3ee] text-[#16221d]">
       <aside className="fixed inset-y-3 left-3 z-40 hidden w-[216px] flex-col overflow-hidden rounded-[18px] bg-[#063b2f] text-white shadow-[0_24px_64px_rgba(6,59,47,0.22)] lg:flex">
         <div className="px-5 pb-5 pt-6">
           <a
@@ -315,7 +315,7 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="min-w-0 lg:pl-[232px]">
+      <div className="w-full min-w-0 max-w-full lg:pl-[232px]">
         <header className="sticky top-0 z-30 flex h-[62px] items-center bg-[#063b2f] px-4 text-white shadow-sm lg:hidden">
           <button
             ref={mobileMenuButtonRef}
@@ -349,7 +349,7 @@ export function AppShell({
           </a>
         </header>
 
-        <main className="min-h-[calc(100vh-62px)] bg-[#fbfcfb] lg:my-3 lg:mr-3 lg:min-h-[calc(100vh-24px)] lg:rounded-[18px] lg:border lg:border-white lg:shadow-[0_18px_55px_rgba(35,71,55,0.08)]">
+        <main className="min-h-[calc(100vh-62px)] w-full min-w-0 max-w-full overflow-x-clip bg-[#fbfcfb] lg:my-3 lg:mr-3 lg:min-h-[calc(100vh-24px)] lg:w-auto lg:rounded-[18px] lg:border lg:border-white lg:shadow-[0_18px_55px_rgba(35,71,55,0.08)]">
           {children}
         </main>
       </div>

@@ -23,7 +23,10 @@ import { useEffect, useState } from "react";
 import { AppShell } from "../../components/app-shell";
 import { LoadingState, formatStatus } from "../../components/client-ui";
 import { apiFetch as fetch } from "../../lib/api-client";
-import { documentsPageEnabled } from "../../lib/feature-flags";
+import {
+  documentsPageEnabled,
+  reimbursementCreationEnabled,
+} from "../../lib/feature-flags";
 import {
   apiUrl,
   caseJourneyStep,
@@ -161,12 +164,12 @@ export default function DashboardPage() {
     >
       <div className="mx-auto w-full max-w-[1340px] px-4 pb-7 pt-4 sm:px-6 lg:px-8 lg:pb-8">
         <header className="mb-3 flex items-center justify-end gap-2 sm:gap-3">
-          {documentsPageEnabled ? (
+          {reimbursementCreationEnabled ? (
             <a
               href="/documents?new=1"
               className="primary-button min-h-11 w-full px-5 text-sm shadow-[0_10px_24px_rgba(8,122,85,0.18)] sm:w-auto"
             >
-              Analyser une facture mobile <Upload size={16} />
+              Nouveau remboursement <Upload size={16} />
             </a>
           ) : null}
           <a
@@ -322,16 +325,16 @@ export default function DashboardPage() {
                     Aucun dossier SMS+ pour le moment
                   </h3>
                   <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#738078]">
-                    {documentsPageEnabled
+                    {reimbursementCreationEnabled
                       ? "Analysez une facture mobile pour détecter vos premiers SMS+ potentiellement remboursables."
                       : "Vos demandes de remboursement apparaîtront ici dès qu’un dossier sera disponible."}
                   </p>
-                  {documentsPageEnabled ? (
+                  {reimbursementCreationEnabled ? (
                     <a
                       href="/documents?new=1"
                       className="primary-button mt-4 min-h-10 px-4 text-xs"
                     >
-                      Analyser une facture mobile <Upload size={14} />
+                      Nouveau remboursement <Upload size={14} />
                     </a>
                   ) : null}
                 </div>

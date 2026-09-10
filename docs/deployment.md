@@ -7,15 +7,13 @@ Le premier déploiement public utilise `LYDOC_DEPLOYMENT_PROFILE=free-beta`. L�
 ```dotenv
 MANAGED_POSTAL_ENABLED=false
 NEXT_PUBLIC_MANAGED_POSTAL_ENABLED=false
-NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false
 POSTAL_PROVIDER=mock
 SERVICE_POSTAL_PRODUCTION_ENABLED=false
 ```
 
-La page client « Mes factures » est masquée tant que
-`NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false`. Pour la réintégrer, passez cette
-valeur à `true`, puis reconstruisez et redéployez l’image Web : les variables
-`NEXT_PUBLIC_*` sont intégrées au bundle Next.js lors du build.
+La bibliothèque client « Mes factures » reste masquée. Le parcours
+« Nouveau remboursement » conserve l’analyse de facture nécessaire à la
+création d’un dossier, sans exposer une page d’archives distincte.
 
 Le support public, lui, reste opérationnel : `RESEND_API_KEY`, `RESEND_FROM_EMAIL` et `CONTACT_TO_EMAIL` sont obligatoires même si `NOTIFICATIONS_REQUIRED=false`. Les limites globales, par e-mail et par client (`CONTACT_DAILY_*` et `CONTACT_HOURLY_*`) doivent rester explicites et bornées.
 

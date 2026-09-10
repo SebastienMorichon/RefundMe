@@ -4,7 +4,6 @@ import { ArrowLeft, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "../../../components/app-shell";
-import { DetectionReviewCard } from "../../../components/detection-review-card";
 import { apiFetch as fetch } from "../../../lib/api-client";
 import {
   ChoiceView,
@@ -134,40 +133,6 @@ export default function CasePage() {
 
   async function startCase() {
     await sendCaseAction("start", "Lecture des exigences du règlement...");
-  }
-
-  async function updateDetection(smsCount: number, amountCents: number) {
-    setIsBusy(true);
-    setMessage("Enregistrement de votre vérification...");
-    setMessageTone("info");
-    try {
-      const response = await fetch(`${apiUrl}/cases/${caseId}/detection`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ smsCount, amountCents }),
-      });
-      const payload = await readJson(response);
-      const parsedCase = readCaseDetail(payload.case);
-      if (!response.ok || !parsedCase) {
-        throw new Error(
-          errorMessage(payload, "Impossible d’enregistrer la correction."),
-        );
-      }
-      setAdministrativeCase(parsedCase);
-      setConfirmationAccepted(false);
-      setMessage("Le nombre de SMS et le montant ont été enregistrés.");
-      setMessageTone("success");
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’enregistrer la correction.",
-      );
-      setMessageTone("error");
-    } finally {
-      setIsBusy(false);
-    }
   }
 
   async function updatePostalExpenseClaim(requested: boolean) {
@@ -726,20 +691,6 @@ export default function CasePage() {
             {message}
           </Notice>
         </div>
-
-        {!administrativeCase.validation &&
-        ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(
-          administrativeCase.status,
-        ) ? (
-          <div className="mx-auto mt-6 max-w-[1020px]">
-            <DetectionReviewCard
-              smsCount={administrativeCase.review.detectedSmsCount}
-              amountCents={administrativeCase.estimatedRecoverableCents}
-              isBusy={isBusy}
-              onSubmit={updateDetection}
-            />
-          </div>
-        ) : null}
 
         <div className="mx-auto mt-6 max-w-[1020px]">
           <div>

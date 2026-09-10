@@ -14,7 +14,7 @@ import { AppShell } from "../../components/app-shell";
 import { PageHeading } from "../../components/cockpit-ui";
 import { LoadingState, Notice, StatusBadge } from "../../components/client-ui";
 import { apiFetch as fetch } from "../../lib/api-client";
-import { documentsPageEnabled } from "../../lib/feature-flags";
+import { reimbursementCreationEnabled } from "../../lib/feature-flags";
 import {
   apiUrl,
   caseProgress,
@@ -132,12 +132,12 @@ export default function CasesPage() {
           title="Mes dossiers de remboursement SMS+"
           description="Suivez chaque jeu-concours, les SMS+ détectés sur votre facture mobile, la prochaine action et le montant estimatif récupérable."
           action={
-            documentsPageEnabled ? (
+            reimbursementCreationEnabled ? (
               <a
                 href="/documents?new=1"
                 className="primary-button min-h-10 self-start px-4 text-xs sm:self-auto"
               >
-                <Plus size={15} /> Nouveau dossier SMS+
+                <Plus size={15} /> Nouveau remboursement
               </a>
             ) : undefined
           }
@@ -228,14 +228,14 @@ export default function CasesPage() {
                 </h2>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
                   {cases.length === 0
-                    ? documentsPageEnabled
+                    ? reimbursementCreationEnabled
                       ? "Analysez une facture mobile pour rechercher des SMS+ de jeux-concours potentiellement remboursables."
                       : "Vos demandes de remboursement SMS+ apparaîtront ici dès qu’un dossier sera disponible."
                     : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
                 </p>
-                {cases.length === 0 && documentsPageEnabled ? (
+                {cases.length === 0 && reimbursementCreationEnabled ? (
                   <a href="/documents?new=1" className="primary-button mt-6">
-                    Analyser une facture mobile <ArrowRight size={17} />
+                    Nouveau remboursement <ArrowRight size={17} />
                   </a>
                 ) : null}
               </div>

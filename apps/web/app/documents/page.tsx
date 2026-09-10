@@ -48,6 +48,7 @@ import {
   type GameChannel,
   type User,
 } from "../../lib/client-data";
+import { documentsPageEnabled } from "../../lib/feature-flags";
 
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
 const allowedTypes = ["application/pdf"];
@@ -83,6 +84,11 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const requestedView = new URLSearchParams(window.location.search);
+    if (!documentsPageEnabled && requestedView.get("new") !== "1") {
+      router.replace("/dashboard");
+      return;
+    }
     void loadPage();
   }, []);
 
@@ -148,6 +154,10 @@ export default function DocumentsPage() {
   }
 
   function openList() {
+    if (!documentsPageEnabled) {
+      router.push("/dashboard");
+      return;
+    }
     setView("list");
     setSelectedFile(null);
     setExistingDocument(null);
@@ -966,7 +976,11 @@ function UploadView({
           className="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-bold text-[#66736d] hover:text-[#087a55] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Retour aux documents</span>
+          <span className="hidden sm:inline">
+            {documentsPageEnabled
+              ? "Retour aux documents"
+              : "Retour au tableau de bord"}
+          </span>
           <span className="sm:hidden">Retour</span>
         </button>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -1382,7 +1396,11 @@ function ResultView({
             className="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-bold text-[#66736d] hover:text-[#087a55] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <ArrowLeft size={16} />
-            <span className="hidden sm:inline">Retour aux documents</span>
+            <span className="hidden sm:inline">
+              {documentsPageEnabled
+                ? "Retour aux documents"
+                : "Retour au tableau de bord"}
+            </span>
             <span className="sm:hidden">Retour</span>
           </button>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -1505,7 +1523,9 @@ function ResultView({
             disabled={isBusy}
             className="secondary-button disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Voir mes documents
+            {documentsPageEnabled
+              ? "Voir mes documents"
+              : "Retour au tableau de bord"}
           </button>
           <button
             type="button"
@@ -1532,7 +1552,11 @@ function ResultView({
           className="inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-bold text-[#66736d] hover:text-[#087a55] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Retour aux documents</span>
+          <span className="hidden sm:inline">
+            {documentsPageEnabled
+              ? "Retour aux documents"
+              : "Retour au tableau de bord"}
+          </span>
           <span className="sm:hidden">Retour</span>
         </button>
         <div className="flex items-center gap-2 sm:gap-3">

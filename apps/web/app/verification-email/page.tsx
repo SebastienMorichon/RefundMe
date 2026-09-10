@@ -13,7 +13,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "../../components/auth-shell";
 import { apiFetch as fetch } from "../../lib/api-client";
-import { documentsPageEnabled } from "../../lib/feature-flags";
+import { reimbursementCreationEnabled } from "../../lib/feature-flags";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const currentLegalConsentVersion = "2026-08-03.v1";
@@ -76,7 +76,7 @@ export default function VerifyEmailPage() {
         throw new Error(errorMessage(payload, "Lien invalide ou expiré."));
       }
       router.replace(
-        documentsPageEnabled ? "/documents?bienvenue=1" : "/dashboard",
+        reimbursementCreationEnabled ? "/documents?new=1" : "/dashboard",
       );
       router.refresh();
     } catch (error) {
