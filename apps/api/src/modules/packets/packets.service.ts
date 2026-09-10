@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import {
@@ -25,6 +26,7 @@ import {
   type CaseValidationSnapshot,
 } from "../eligibility/case-snapshots";
 import type { PostalExpenseReimbursement } from "../rules/postal-expense-reimbursement";
+import { DEFAULT_PRICING, PricingService } from "../pricing/pricing.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   lockCustomerProfile,
@@ -47,6 +49,19 @@ type PacketSmsCharge = Readonly<{
   quantity: number;
   amountCents: number;
 }>;
+export type PacketPostalExpenseCosts = Readonly<{
+  postageCents: number | null;
+  printingCents: number | null;
+  printingCentsPerPage: number | null;
+  printingPageCount: number;
+  totalCents: number | null;
+}>;
+export type PacketPostalExpenseClaim = NonNullable<
+  CaseValidationSnapshot["postalExpenseClaim"]
+> &
+  Readonly<{
+    calculatedCosts?: PacketPostalExpenseCosts;
+  }>;
 type PacketRuleConstraints = Readonly<{
   reimbursementRecipient?: string;
   reimbursementAddress?: string;
@@ -78,6 +93,29 @@ type LetterFlow = {
   ink: ReturnType<typeof rgb>;
   grey: ReturnType<typeof rgb>;
 };
+export type CreateCasePacketInput = Readonly<{
+  caseId: string;
+  customerEmail: string;
+  customerName?: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  customerOperatorReference?: string;
+  organizer: string;
+  gameName: string;
+  estimatedRecoverableCents: number;
+  serviceFeeCents: number;
+  documents: string[];
+  requiredDocuments?: RequiredPacketDocument[];
+  ruleConstraints?: PacketRuleConstraints;
+  postalExpenseClaim?: CaseValidationSnapshot["postalExpenseClaim"];
+  smsCharges?: PacketSmsCharge[];
+  attachments?: PacketAttachment[];
+  createdAt: Date;
+  paidAt: Date | null;
+  preview: boolean;
+  fulfillmentMode?: "SELF_SERVICE" | "MANAGED_POSTAL";
+  defaultPostageCents?: number;
+}>;
 
 @Injectable()
 export class PacketsService {
@@ -87,6 +125,7 @@ export class PacketsService {
     private readonly storageReservations: StorageWriteReservations = new StorageWriteReservations(
       prisma,
     ),
+    @Optional() private readonly pricing?: PricingService,
   ) {}
 
   async generate(caseId: string, ownerId: string) {
@@ -216,6 +255,7 @@ export class PacketsService {
     const smsCharges = readSmsCharges(
       administrativeCase.complianceSnapshotJson,
     );
+    const pricing = await this.pricing?.get();
     if (!preview) {
       assertPacketAttachmentSizes(
         validatedDocuments.map(({ document }) => document.sizeBytes),
@@ -261,6 +301,7 @@ export class PacketsService {
       paidAt: administrativeCase.payment?.paidAt ?? null,
       preview,
       fulfillmentMode: selfService ? "SELF_SERVICE" : "MANAGED_POSTAL",
+      ...(pricing ? { defaultPostageCents: pricing.greenLetterCents } : {}),
     });
 
     if (!preview) {
@@ -390,11 +431,12 @@ export class PacketsService {
           });
           let firstGeneration = false;
           if (!current) {
-            const currentCase =
-              await transaction.administrativeCase.findUnique({
+            const currentCase = await transaction.administrativeCase.findUnique(
+              {
                 where: { id: input.caseId },
                 select: { updatedAt: true },
-              });
+              },
+            );
             if (
               !currentCase ||
               currentCase.updatedAt.getTime() !==
@@ -440,8 +482,7 @@ export class PacketsService {
               metadata: {
                 generatedPacketId: current.id,
                 firstGeneration,
-                sensitiveRetentionExpiresAt:
-                  retentionExpiresAt.toISOString(),
+                sensitiveRetentionExpiresAt: retentionExpiresAt.toISOString(),
               },
             },
           });
@@ -452,18 +493,12 @@ export class PacketsService {
         persistedPacket.storageBucket !== stored.bucket ||
         persistedPacket.storageKey !== stored.key
       ) {
-        await this.cleanupUncommittedStorageWrite(
-          storageReservationId,
-          stored,
-        );
+        await this.cleanupUncommittedStorageWrite(storageReservationId, stored);
         stored = null;
       }
       return persistedPacket;
     } catch (error) {
-      await this.cleanupUncommittedStorageWrite(
-        storageReservationId,
-        stored,
-      );
+      await this.cleanupUncommittedStorageWrite(storageReservationId, stored);
       throw error;
     }
   }
@@ -475,18 +510,22 @@ export class PacketsService {
     > | null,
   ): Promise<void> {
     if (!stored) {
-      await this.storageReservations.cancel(reservationId).catch(() => undefined);
+      await this.storageReservations
+        .cancel(reservationId)
+        .catch(() => undefined);
       return;
     }
     try {
       await this.storage.deleteObject(stored);
-      await this.storageReservations.cancel(reservationId).catch(() => undefined);
+      await this.storageReservations
+        .cancel(reservationId)
+        .catch(() => undefined);
     } catch {
       // Retain (or retry recording) the staging reference so the expiry
       // reconciler can delete the orphan idempotently.
-      await this.storageReservations.markStored(reservationId, stored).catch(
-        () => undefined,
-      );
+      await this.storageReservations
+        .markStored(reservationId, stored)
+        .catch(() => undefined);
     }
   }
 
@@ -795,33 +834,25 @@ export function findMissingRequiredDocumentLabels(
   );
 }
 
-export async function createCasePacket(input: {
-  caseId: string;
-  customerEmail: string;
-  customerName?: string;
-  customerAddress?: string;
-  customerPhone?: string;
-  customerOperatorReference?: string;
-  organizer: string;
-  gameName: string;
-  estimatedRecoverableCents: number;
-  serviceFeeCents: number;
-  documents: string[];
-  requiredDocuments?: RequiredPacketDocument[];
-  ruleConstraints?: PacketRuleConstraints;
-  postalExpenseClaim?: CaseValidationSnapshot["postalExpenseClaim"];
-  smsCharges?: PacketSmsCharge[];
-  attachments?: PacketAttachment[];
-  createdAt: Date;
-  paidAt: Date | null;
-  preview: boolean;
-  fulfillmentMode?: "SELF_SERVICE" | "MANAGED_POSTAL";
-}): Promise<Uint8Array> {
+export async function createCasePacket(
+  input: CreateCasePacketInput,
+): Promise<Uint8Array> {
   assertPacketAggregateLimits(input.attachments ?? []);
   const document = await PDFDocument.create();
   const regular = await document.embedFont(StandardFonts.Helvetica);
   const bold = await document.embedFont(StandardFonts.HelveticaBold);
-  appendReimbursementLetter(document, input, regular, bold);
+  const postalExpenseClaim = await addCalculatedPostalExpenseCosts(
+    input.postalExpenseClaim,
+    input.attachments ?? [],
+    input.defaultPostageCents ?? DEFAULT_PRICING.greenLetterCents,
+  );
+  const { postalExpenseClaim: _postalExpenseClaim, ...letterInput } = input;
+  appendReimbursementLetter(
+    document,
+    postalExpenseClaim ? { ...letterInput, postalExpenseClaim } : letterInput,
+    regular,
+    bold,
+  );
 
   if (!input.preview) {
     await appendAttachments(document, input.attachments ?? []);
@@ -853,7 +884,9 @@ export async function createCasePacket(input: {
 
 function appendReimbursementLetter(
   document: PDFDocument,
-  input: Parameters<typeof createCasePacket>[0],
+  input: CreateCasePacketInput & {
+    postalExpenseClaim?: PacketPostalExpenseClaim;
+  },
   regular: PDFFont,
   bold: PDFFont,
 ) {
@@ -929,13 +962,34 @@ function appendReimbursementLetter(
     { font: bold, gapAfter: 20 },
   );
   drawLetterParagraph(flow, "Madame, Monsieur,", { gapAfter: 14 });
+  const postalExpenseTotalCents =
+    input.postalExpenseClaim?.calculatedCosts?.totalCents ?? null;
+  const totalRequestedCents =
+    postalExpenseTotalCents === null
+      ? input.estimatedRecoverableCents
+      : input.estimatedRecoverableCents + postalExpenseTotalCents;
   drawLetterParagraph(
     flow,
-    `Je vous adresse une demande de remboursement de ${formatEurosText(input.estimatedRecoverableCents)} pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`,
+    postalExpenseTotalCents === null
+      ? `Je vous adresse une demande de remboursement de ${formatEurosText(totalRequestedCents)} pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`
+      : `Je vous adresse une demande de remboursement pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`,
   );
 
   const smsParagraph = smsParticipationParagraph(input.smsCharges ?? []);
   if (smsParagraph) drawLetterParagraph(flow, smsParagraph);
+
+  const amountBreakdown = reimbursementAmountBreakdownParagraph(
+    input.estimatedRecoverableCents,
+    input.postalExpenseClaim?.calculatedCosts,
+  );
+  if (amountBreakdown) {
+    drawLetterParagraph(flow, amountBreakdown);
+    drawLetterParagraph(
+      flow,
+      `Montant total demandé : ${formatEurosText(totalRequestedCents)}.`,
+      { font: bold },
+    );
+  }
 
   for (const paragraph of postalExpenseClaimParagraphs(
     input.postalExpenseClaim,
@@ -1240,7 +1294,7 @@ export function smsParticipationParagraph(
 }
 
 export function postalExpenseClaimParagraphs(
-  claim: CaseValidationSnapshot["postalExpenseClaim"] | undefined,
+  claim: PacketPostalExpenseClaim | undefined,
 ): string[] {
   if (!claim?.requested) return [];
   const postage = claim.terms.postage.reimbursable;
@@ -1275,9 +1329,121 @@ export function postalExpenseClaimParagraphs(
   if (rates.length > 0) {
     paragraphs.push(`Le règlement prévoit ${joinFrench(rates)}.`);
   }
+  const calculated = postalExpenseClaimCostSentence(claim.calculatedCosts);
+  if (calculated) paragraphs.push(calculated);
   const limit = strictPostalExpenseLimitSentence(claim.terms.claimLimit);
   if (limit) paragraphs.push(limit);
   return paragraphs;
+}
+
+async function addCalculatedPostalExpenseCosts(
+  claim: CaseValidationSnapshot["postalExpenseClaim"] | undefined,
+  attachments: PacketAttachment[],
+  defaultPostageCents: number,
+): Promise<PacketPostalExpenseClaim | undefined> {
+  if (!claim?.requested) return claim;
+  const requestPageCount = 1 + (await countAttachmentPages(attachments));
+  const calculatedCosts = calculatePostalExpenseClaimCosts(
+    claim,
+    requestPageCount,
+    defaultPostageCents,
+  );
+  return calculatedCosts ? { ...claim, calculatedCosts } : claim;
+}
+
+export function calculatePostalExpenseClaimCosts(
+  claim: CaseValidationSnapshot["postalExpenseClaim"] | undefined,
+  requestPageCount: number,
+  defaultPostageCents: number = DEFAULT_PRICING.greenLetterCents,
+): PacketPostalExpenseCosts | null {
+  if (!claim?.requested || !claim.terms.available) return null;
+
+  const postageCents = claim.terms.postage.reimbursable
+    ? (claim.terms.postage.amountCents ?? defaultPostageCents)
+    : 0;
+  const printingPageCount =
+    claim.terms.printing.reimbursable &&
+    claim.terms.printing.centsPerPage !== null
+      ? Math.min(
+          Math.max(0, Math.trunc(requestPageCount)),
+          claim.terms.printing.maxPages ?? Number.MAX_SAFE_INTEGER,
+        )
+      : 0;
+  const printingCents =
+    claim.terms.printing.reimbursable &&
+    claim.terms.printing.centsPerPage !== null
+      ? printingPageCount * claim.terms.printing.centsPerPage
+      : claim.terms.printing.reimbursable
+        ? null
+        : 0;
+  const totalCents =
+    postageCents === null || printingCents === null
+      ? null
+      : postageCents + printingCents;
+
+  return {
+    postageCents,
+    printingCents,
+    printingCentsPerPage: claim.terms.printing.centsPerPage,
+    printingPageCount,
+    totalCents,
+  };
+}
+
+async function countAttachmentPages(attachments: PacketAttachment[]) {
+  let total = 0;
+  for (const attachment of attachments) {
+    if (attachment.mimeType === "application/pdf") {
+      const source = await PDFDocument.load(attachment.bytes, {
+        ignoreEncryption: true,
+      });
+      total += source.getPageCount();
+      continue;
+    }
+    if (
+      attachment.mimeType === "image/png" ||
+      attachment.mimeType === "image/jpeg"
+    ) {
+      total += 1;
+    }
+  }
+  return total;
+}
+
+function postalExpenseClaimCostSentence(
+  costs: PacketPostalExpenseCosts | undefined,
+): string {
+  if (!costs || costs.totalCents === null) return "";
+  const details = [
+    costs.postageCents && costs.postageCents > 0
+      ? `affranchissement : ${formatEurosText(costs.postageCents)}`
+      : "",
+    costs.printingCents && costs.printingCents > 0
+      ? `impression : ${formatEurosText(costs.printingCents)} pour ${costs.printingPageCount} ${costs.printingPageCount > 1 ? "pages" : "page"}`
+      : "",
+  ].filter(Boolean);
+  return details.length > 0
+    ? `Ces frais d'envoi s'élèvent à ${formatEurosText(costs.totalCents)} (${details.join(" ; ")}).`
+    : "";
+}
+
+function reimbursementAmountBreakdownParagraph(
+  smsCents: number,
+  costs: PacketPostalExpenseCosts | undefined,
+): string {
+  if (!costs || costs.totalCents === null) return "";
+  const parts = [
+    `${formatEurosText(smsCents)} de SMS`,
+    costs.printingCents &&
+    costs.printingCents > 0 &&
+    costs.printingCentsPerPage !== null
+      ? `${formatEurosText(costs.printingCents)} de frais d'impression (${costs.printingPageCount} ${costs.printingPageCount > 1 ? "pages" : "page"} à ${formatEurosText(costs.printingCentsPerPage)} par page)`
+      : "",
+    costs.postageCents && costs.postageCents > 0
+      ? `${formatEurosText(costs.postageCents)} pour le timbre`
+      : "",
+  ].filter(Boolean);
+  return `Cette demande comprend ${joinFrench(parts)}.`;
 }
 
 function postalExpenseSource(sourceReference: string): string {
