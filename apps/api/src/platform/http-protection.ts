@@ -18,9 +18,10 @@ const maximumRateLimitPruneScan = 128;
 const defaultGeneralRateLimitPerMinute = 120;
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 const csrfExemptPaths = new Set([
-  "/payments/stripe/webhook",
+  "/payments/sumup/webhook",
   "/shipping/service-postal/webhook",
 ]);
+const signedWebhookPaths = new Set(["/shipping/service-postal/webhook"]);
 
 type CsrfProtectionOptions = Readonly<{
   cookieName: string;
@@ -397,7 +398,7 @@ function createJsonBodyParser(
     verify(request, _response, buffer) {
       if (
         captureSignedWebhookBody &&
-        csrfExemptPaths.has(normalizeRequestPath((request as Request).path))
+        signedWebhookPaths.has(normalizeRequestPath((request as Request).path))
       ) {
         (request as Request & { rawBody?: Buffer }).rawBody =
           Buffer.from(buffer);

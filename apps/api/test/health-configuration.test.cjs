@@ -97,6 +97,26 @@ test("production readiness accepts an explicitly bounded free-beta profile", () 
   });
 });
 
+test("full paid profile requires SumUp and accepts manual postal fulfillment", () => {
+  withEnvironment(
+    {
+      ...validProductionEnvironment,
+      LYDOC_DEPLOYMENT_PROFILE: "full",
+      MANAGED_POSTAL_ENABLED: "true",
+      POSTAL_PROVIDER: "manual",
+      SUMUP_API_KEY: "sup_sk_live_test_key_long_enough",
+      SUMUP_MERCHANT_CODE: "MC123456",
+    },
+    () => {
+      const controller = new HealthController({});
+      assert.equal(
+        controller.assertRuntimeConfiguration().features.managedPostal,
+        true,
+      );
+    },
+  );
+});
+
 for (const [name, value] of [
   ["DOCUMENT_RETENTION_AUTOMATION_ENABLED", "false"],
   ["AUTH_EXPOSE_TEST_TOKENS", "true"],

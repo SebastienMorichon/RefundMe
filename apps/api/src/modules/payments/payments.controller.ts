@@ -1,14 +1,12 @@
 import {
+  Body,
   Controller,
-  Headers,
   Param,
   Post,
-  RawBodyRequest,
   Req,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 import { AuthGuard } from "../identity/auth.guard";
 import type { AuthenticatedRequest } from "../identity/auth.types";
 import { PaymentsService } from "./payments.service";
@@ -29,14 +27,11 @@ export class CasePaymentsController {
 }
 
 @Controller("payments")
-export class StripeWebhookController {
+export class SumUpWebhookController {
   constructor(private readonly payments: PaymentsService) {}
 
-  @Post("stripe/webhook")
-  async receiveStripeWebhook(
-    @Req() request: RawBodyRequest<Request>,
-    @Headers("stripe-signature") signature?: string,
-  ) {
-    return this.payments.handleStripeWebhook(request.rawBody, signature);
+  @Post("sumup/webhook")
+  async receiveSumUpWebhook(@Body() payload: Record<string, unknown>) {
+    return this.payments.handleSumUpWebhook(payload);
   }
 }

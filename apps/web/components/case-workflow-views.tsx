@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
-import type { ChangeEvent, ReactNode } from "react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 import { Notice } from "./client-ui";
 import { formatCents } from "../lib/client-data";
 import {
@@ -35,42 +35,7 @@ import {
   type FulfillmentMode,
   type RequiredDocument,
 } from "../lib/case-detail";
-
-export function StartView({
-  isBusy,
-  onStart,
-}: {
-  isBusy: boolean;
-  onStart: () => Promise<void>;
-}) {
-  return (
-    <section className="mx-auto max-w-2xl py-5 text-center">
-      <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#e9f5ef] text-[#087a55]">
-        <ReceiptText size={22} />
-      </span>
-      <h2 className="mt-5 text-2xl font-extrabold text-[#17211d]">
-        Préparer ce dossier
-      </h2>
-      <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#66736d]">
-        Lydoc va lire les exigences du règlement et afficher uniquement les
-        justificatifs réellement nécessaires.
-      </p>
-      <button
-        type="button"
-        onClick={() => void onStart()}
-        disabled={isBusy}
-        className="primary-button mt-7 min-w-[230px]"
-      >
-        {isBusy ? (
-          <LoaderCircle className="animate-spin" size={17} />
-        ) : (
-          <ArrowRight size={17} />
-        )}{" "}
-        Préparer mon dossier
-      </button>
-    </section>
-  );
-}
+import { sensitiveDocumentWatermarkingEnabled } from "../lib/feature-flags";
 
 export function DocumentsView({
   administrativeCase,
@@ -141,8 +106,10 @@ export function DocumentsView({
       ) : null}
 
       <p className="mt-5 flex items-center justify-center gap-2 text-xs text-[#66736d]">
-        <LockKeyhole size={14} /> RIB et pièces d’identité sont filigranés, puis
-        tous les documents sont chiffrés.
+        <LockKeyhole size={14} />
+        {sensitiveDocumentWatermarkingEnabled
+          ? "RIB et pièces d’identité sont filigranés, puis tous les documents sont chiffrés."
+          : "Aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les anciens fichiers filigranés le restent jusqu’à leur remplacement ; tous les documents restent chiffrés."}
       </p>
       <div className="mt-7 text-center">
         <button type="button" disabled className="primary-button min-w-[190px]">
@@ -193,7 +160,9 @@ function DocumentRequirementRow({
             {item.supplied
               ? "Document ajouté au dossier."
               : item.documentId
-                ? "Remplacez cet ancien fichier pour appliquer le filigrane."
+                ? sensitiveDocumentWatermarkingEnabled
+                  ? "Remplacez cet ancien fichier pour appliquer le filigrane."
+                  : "Remplacez cet ancien fichier par une copie sans filigrane."
                 : documentHelp(item)}
           </p>
         </div>
@@ -360,8 +329,7 @@ function PostalExpenseClaimOption({
   isBusy: boolean;
   onChange: (requested: boolean) => Promise<void>;
 }) {
-  const reimbursement =
-    administrativeCase.review.postalExpenseReimbursement;
+  const reimbursement = administrativeCase.review.postalExpenseReimbursement;
   const limit = postalExpenseLimit(reimbursement);
 
   return (
@@ -484,8 +452,7 @@ function postalExpenseLimit(
   }
   const labels = {
     PER_REQUEST: "Le remboursement peut être demandé avec chaque demande.",
-    PER_PARTICIPANT_PER_MONTH:
-      "Une seule demande par participant et par mois.",
+    PER_PARTICIPANT_PER_MONTH: "Une seule demande par participant et par mois.",
     PER_PARTICIPANT_PER_GAME:
       "Une seule demande par participant pour toute la durée du jeu.",
     PER_HOUSEHOLD_PER_GAME:
@@ -854,13 +821,16 @@ export function PostalQuoteView({
   administrativeCase,
   isBusy,
   onCheckout,
+  onApplyPromo,
   onFree,
 }: {
   administrativeCase: CaseDetail;
   isBusy: boolean;
   onCheckout: () => Promise<void>;
+  onApplyPromo: (code: string) => Promise<void>;
   onFree: () => Promise<void>;
 }) {
+  const [promoCode, setPromoCode] = useState("");
   const shipment = administrativeCase.postalShipment!;
   const total = administrativeCase.serviceFeeCents + shipment.totalCents;
   return (
@@ -876,7 +846,8 @@ export function PostalQuoteView({
           Vérifiez le prix avant de payer
         </h2>
         <p className="mt-3 text-sm leading-6 text-[#66736d]">
-          Le paiement déclenchera automatiquement l’impression et l’envoi.
+          Après paiement SumUp, votre dossier sera placé dans notre file
+          d’impression et d’envoi.
         </p>
       </div>
 
@@ -885,6 +856,12 @@ export function PostalQuoteView({
           label="Service Lydoc"
           value={formatCents(administrativeCase.serviceFeeCents)}
         />
+        {shipment.pricing?.discountCents ? (
+          <ReviewLine
+            label={`Remise · ${shipment.pricing.discountLabel ?? "Promotion"}`}
+            value={`− ${formatCents(shipment.pricing.discountCents)}`}
+          />
+        ) : null}
         <ReviewLine
           label="Impression et mise sous pli"
           value={formatCents(shipment.printingCents)}
@@ -892,13 +869,51 @@ export function PostalQuoteView({
         <ReviewLine
           label={
             shipment.product === "vertesuivi"
-              ? "Lettre verte suivie"
-              : "Lettre verte"
+              ? "Envoi suivi"
+              : "e-Lettre rouge"
           }
           value={formatCents(shipment.postageCents)}
         />
         <ReviewLine label="Total" value={formatCents(total)} strong />
       </dl>
+      <p className="mt-3 text-xs leading-5 text-[#66736d]">
+        Les frais de service ne sont pas remboursés par l’organisateur. Pour
+        ce règlement, la base postale indiquée est{" "}
+        {administrativeCase.review.postalExpenseReimbursement.postage
+          .amountCents !== null
+          ? `de ${formatCents(administrativeCase.review.postalExpenseReimbursement.postage.amountCents)}`
+          : "le tarif économique en vigueur"}
+        ; seules les photocopies strictement admissibles peuvent être
+        remboursées à 0,30 € par page.
+      </p>
+      <div className="surface mt-4 p-4 sm:p-5">
+        <label className="text-sm font-extrabold text-[#24332c]" htmlFor="promo-code">
+          Code promotionnel
+        </label>
+        <div className="mt-2 flex gap-2">
+          <input
+            id="promo-code"
+            value={promoCode}
+            onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+            maxLength={40}
+            placeholder="MONCODE"
+            className="field min-w-0 flex-1 uppercase"
+          />
+          <button
+            type="button"
+            onClick={() => void onApplyPromo(promoCode)}
+            disabled={isBusy || promoCode.trim().length < 3}
+            className="secondary-button"
+          >
+            Appliquer
+          </button>
+        </div>
+        {shipment.pricing?.promoCode ? (
+          <p className="mt-2 text-xs font-bold text-[#087a55]">
+            Code {shipment.pricing.promoCode} appliqué.
+          </p>
+        ) : null}
+      </div>
       {shipment.simulation ? (
         <p className="mt-4 text-center text-xs font-bold text-[#9a5a17]">
           Environnement de test : aucun courrier réel ne sera expédié.

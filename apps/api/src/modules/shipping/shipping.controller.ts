@@ -24,10 +24,15 @@ export class ShippingController {
   @Post(":id/postal-quote")
   async quote(
     @Param("id") caseId: string,
+    @Body() body: Record<string, unknown>,
     @Req() request: AuthenticatedRequest,
   ) {
     return {
-      shipment: await this.shipping.quote(caseId, this.userId(request)),
+      shipment: await this.shipping.quote(
+        caseId,
+        this.userId(request),
+        typeof body.promoCode === "string" ? body.promoCode : undefined,
+      ),
     };
   }
 

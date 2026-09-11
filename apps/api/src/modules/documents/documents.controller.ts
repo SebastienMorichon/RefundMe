@@ -28,6 +28,7 @@ import {
 } from "@lydoc/infrastructure";
 import { AuthGuard } from "../identity/auth.guard";
 import type { AuthenticatedRequest } from "../identity/auth.types";
+import { isSensitiveDocumentWatermarkingEnabled } from "../../platform/feature-flags";
 import {
   GlobalDocumentStorageQuotaError,
   PrismaDocumentRepository,
@@ -111,6 +112,9 @@ export class DocumentsController {
       {
         maxDocuments: maxDocumentsPerAccount,
         maxStoredBytes: maxStoredBytesPerAccount,
+      },
+      {
+        watermarkSensitiveDocuments: isSensitiveDocumentWatermarkingEnabled(),
       },
     );
   }

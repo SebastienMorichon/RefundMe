@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   MessageCircleMore,
+  PackageCheck,
   ReceiptText,
   Settings,
   ShieldCheck,
@@ -26,12 +27,14 @@ export type AppSection =
   | "dashboard"
   | "documents"
   | "cases"
+  | "rules"
   | "achievements"
   | "profile"
   | "notifications"
   | "admin-clients"
   | "admin"
   | "admin-invoices"
+  | "admin-fulfillment"
   | "admin-pricing";
 
 type AppShellProps = {
@@ -57,6 +60,12 @@ const navigationItems: NavigationItem[] = [
     icon: FileText,
   },
   { id: "cases", href: "/cases", label: "Mes dossiers", icon: CaseFolderIcon },
+  {
+    id: "rules",
+    href: "/reglements",
+    label: "Les règlements",
+    icon: ShieldCheck,
+  },
   {
     id: "achievements",
     href: "/achievements",
@@ -230,6 +239,15 @@ export function AppShell({
               </p>
               <SidebarLink
                 item={{
+                  id: "admin-fulfillment",
+                  href: "/admin/fulfillment",
+                  label: "Envois à traiter",
+                  icon: PackageCheck,
+                }}
+                active={active === "admin-fulfillment"}
+              />
+              <SidebarLink
+                item={{
                   id: "admin-clients",
                   href: "/admin/clients",
                   label: "Clients",
@@ -397,6 +415,16 @@ export function AppShell({
                   <p className="px-3 pb-2 text-[10px] font-bold uppercase text-white/45">
                     Administration
                   </p>
+                  <SidebarLink
+                    item={{
+                      id: "admin-fulfillment",
+                      href: "/admin/fulfillment",
+                      label: "Envois à traiter",
+                      icon: PackageCheck,
+                    }}
+                    active={active === "admin-fulfillment"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
                   <SidebarLink
                     item={{
                       id: "admin-clients",

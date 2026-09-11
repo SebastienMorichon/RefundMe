@@ -1190,7 +1190,7 @@ test("CSRF protection keeps only the two raw webhook endpoints exempt", () => {
   };
 
   protect(
-    createRequest({ path: "/PAYMENTS/STRIPE/WEBHOOK/" }),
+    createRequest({ path: "/PAYMENTS/SUMUP/WEBHOOK/" }),
     createResponse(),
     next,
   );
@@ -1201,7 +1201,7 @@ test("CSRF protection keeps only the two raw webhook endpoints exempt", () => {
   );
   const nonWebhook = createResponse();
   protect(
-    createRequest({ path: "/payments/stripe/checkout" }),
+    createRequest({ path: "/payments/sumup/checkout" }),
     nonWebhook,
     next,
   );
@@ -1213,7 +1213,7 @@ test("CSRF protection keeps only the two raw webhook endpoints exempt", () => {
 test("JSON bodies stay small and raw bytes are copied only for signed webhooks", async (t) => {
   const app = express();
   app.use(createDefaultJsonBodyParser());
-  app.post("/payments/stripe/webhook", (request, response) => {
+  app.post("/shipping/service-postal/webhook", (request, response) => {
     response.json({ rawBytes: request.rawBody?.length ?? 0 });
   });
   app.post("/auth/login", (request, response) => {
@@ -1247,7 +1247,7 @@ test("JSON bodies stay small and raw bytes are copied only for signed webhooks",
   assert.equal(authResponse.status, 413);
 
   const webhookResponse = await fetch(
-    `http://127.0.0.1:${address.port}/payments/stripe/webhook`,
+    `http://127.0.0.1:${address.port}/shipping/service-postal/webhook`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },

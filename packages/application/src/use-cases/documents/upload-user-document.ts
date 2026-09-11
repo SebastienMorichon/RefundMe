@@ -36,6 +36,9 @@ export class UploadUserDocument {
       maxDocuments: number;
       maxStoredBytes: number;
     }>,
+    private readonly documentProtection: Readonly<{
+      watermarkSensitiveDocuments: boolean;
+    }> = { watermarkSensitiveDocuments: true },
   ) {}
 
   async execute(input: {
@@ -112,13 +115,15 @@ export class UploadUserDocument {
         );
       }
 
-      const watermarkedDocument = sensitiveDocumentKinds.has(input.kind)
-        ? await this.watermarker.watermark({
-            bytes: sanitizedBytes,
-            mimeType: input.mimeType,
-            kind: input.kind,
-          })
-        : null;
+      const watermarkedDocument =
+        this.documentProtection.watermarkSensitiveDocuments &&
+        sensitiveDocumentKinds.has(input.kind)
+          ? await this.watermarker.watermark({
+              bytes: sanitizedBytes,
+              mimeType: input.mimeType,
+              kind: input.kind,
+            })
+          : null;
       const bytesToStore = watermarkedDocument?.bytes ?? sanitizedBytes;
 
       if (
@@ -127,7 +132,7 @@ export class UploadUserDocument {
         !hasExpectedFileSignature(bytesToStore, input.mimeType)
       ) {
         throw new Error(
-          "Le filigranage a produit un document invalide ou trop volumineux.",
+          "La préparation a produit un document invalide ou trop volumineux.",
         );
       }
       if (!reservationId) {

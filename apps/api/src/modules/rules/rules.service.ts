@@ -235,6 +235,9 @@ export class RulesService {
           id: string;
           name: string;
           organizer: string;
+          reimbursementCents: number;
+          requiredDocuments: Prisma.JsonValue;
+          constraints: Prisma.JsonValue;
           validFrom: Date | null;
           validUntil: Date | null;
         }>;
@@ -256,6 +259,9 @@ export class RulesService {
         id: rule.id,
         name: rule.name,
         organizer: rule.organizer.name,
+        reimbursementCents: rule.reimbursementCents,
+        requiredDocuments: rule.requiredDocuments,
+        constraints: rule.constraintsJson,
         validFrom: rule.validFrom,
         validUntil: rule.validUntil,
       });
@@ -664,8 +670,10 @@ Retourne uniquement un objet JSON avec ces champs:
     "channelName": "chaine de television ou marque diffuseur clairement citee, ou chaine vide",
     "participationMechanism": "SMS+, site web, appel ou autre, ou chaine vide",
     "participationPeriod": "periode de participation fidele au reglement, ou chaine vide",
+    "participationLimit": "nombre ou frequence maximale de participations, avec son perimetre, ou chaine vide",
     "eligibilityConditions": ["conditions d'eligibilite fidelement reprises"],
     "reimbursementConditions": ["conditions precises du remboursement, plafonds inclus"],
+    "reimbursementRequestLimit": "nombre ou frequence maximale de demandes de remboursement, avec son perimetre, ou chaine vide",
     "excludedCosts": ["frais exclus ou chaine vide"],
     "reimbursementDeadline": "date ISO YYYY-MM-DD si calculable, sinon formulation fidele ou chaine vide",
     "reimbursementRecipient": "service ou destinataire de la demande, ou chaine vide",

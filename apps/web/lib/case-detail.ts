@@ -1,4 +1,5 @@
 import { formatCents } from "./client-data";
+import { sensitiveDocumentWatermarkingEnabled } from "./feature-flags";
 
 export type RequiredDocument = {
   kind: string;
@@ -28,7 +29,13 @@ export type PostalExpenseReimbursementReview = {
     basis: string;
   };
   claimLimit: {
-    scope: "PER_REQUEST" | "PER_PARTICIPANT_PER_MONTH" | "PER_PARTICIPANT_PER_GAME" | "PER_HOUSEHOLD_PER_GAME" | "OTHER" | "UNSPECIFIED";
+    scope:
+      | "PER_REQUEST"
+      | "PER_PARTICIPANT_PER_MONTH"
+      | "PER_PARTICIPANT_PER_GAME"
+      | "PER_HOUSEHOLD_PER_GAME"
+      | "OTHER"
+      | "UNSPECIFIED";
     strict: boolean;
     details: string;
   };
@@ -70,6 +77,13 @@ export type CaseDetail = {
     submittedAt: string | null;
     deliveredAt: string | null;
     simulation: boolean;
+    pricing: {
+      baseServiceFeeCents: number;
+      serviceFeeCents: number;
+      discountCents: number;
+      discountLabel: string | null;
+      promoCode: string | null;
+    } | null;
   } | null;
 };
 
@@ -139,7 +153,9 @@ export function missingDocumentPrompt(
 ): string {
   if (!document) return "Ajoutez la pièce manquante pour continuer.";
   if (document.documentId) {
-    return "Remplacez cet ancien document pour lui appliquer le filigrane requis.";
+    return sensitiveDocumentWatermarkingEnabled
+      ? "Remplacez cet ancien document pour lui appliquer le filigrane requis."
+      : "Remplacez cet ancien document par une copie sans filigrane.";
   }
   if (document.kind === "IDENTITY_DOCUMENT") {
     return "Ajoutez votre pièce d’identité pour continuer.";
@@ -564,5 +580,23 @@ function readPostalShipment(
     deliveredAt:
       typeof value.deliveredAt === "string" ? value.deliveredAt : null,
     simulation: value.simulation,
+    pricing: readShipmentPricing(value.pricing),
+  };
+}
+
+function readShipmentPricing(value: unknown): NonNullable<CaseDetail["postalShipment"]>["pricing"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const pricing = value as Record<string, unknown>;
+  if (
+    typeof pricing.baseServiceFeeCents !== "number" ||
+    typeof pricing.serviceFeeCents !== "number" ||
+    typeof pricing.discountCents !== "number"
+  ) return null;
+  return {
+    baseServiceFeeCents: pricing.baseServiceFeeCents,
+    serviceFeeCents: pricing.serviceFeeCents,
+    discountCents: pricing.discountCents,
+    discountLabel: typeof pricing.discountLabel === "string" ? pricing.discountLabel : null,
+    promoCode: typeof pricing.promoCode === "string" ? pricing.promoCode : null,
   };
 }

@@ -13,7 +13,6 @@ import {
   PostalQuoteView,
   ReviewView,
   SelfServiceView,
-  StartView,
   TrackingView,
 } from "../../../components/case-workflow-views";
 import {
@@ -56,6 +55,7 @@ export default function CasePage() {
   const [isBusy, setIsBusy] = useState(false);
   const [confirmationAccepted, setConfirmationAccepted] = useState(false);
   const [postalAccepted, setPostalAccepted] = useState(false);
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
   const [fulfillmentSelection, setFulfillmentSelection] =
     useState<FulfillmentMode | null>(null);
 
@@ -65,6 +65,7 @@ export default function CasePage() {
 
     async function initialize() {
       void loadUser();
+      const commerciallyEnabled = await loadPaymentConfiguration();
       const returnedFromPayment =
         new URLSearchParams(window.location.search).get("payment") ===
         "success";
@@ -74,7 +75,7 @@ export default function CasePage() {
         setMessageTone("info");
       }
       for (let attempt = 0; attempt < attempts && !cancelled; attempt += 1) {
-        const loaded = await loadCase();
+        const loaded = await loadCase(commerciallyEnabled);
         if (loaded?.payment?.status === "PAID" || !returnedFromPayment) break;
         await new Promise((resolve) => window.setTimeout(resolve, 1200));
       }
@@ -103,7 +104,23 @@ export default function CasePage() {
     }
   }
 
-  async function loadCase(): Promise<CaseDetail | null> {
+  async function loadPaymentConfiguration(): Promise<boolean> {
+    try {
+      const response = await fetch(`${apiUrl}/payments/configuration`, {
+        credentials: "include",
+      });
+      const payload = await readJson(response);
+      const configuration = payload.configuration as Record<string, unknown> | undefined;
+      const enabled = response.ok && configuration?.paymentEnabled === true;
+      setPaymentEnabled(enabled);
+      return enabled;
+    } catch {
+      setPaymentEnabled(false);
+      return false;
+    }
+  }
+
+  async function loadCase(commerciallyEnabled = paymentEnabled): Promise<CaseDetail | null> {
     try {
       const response = await fetch(`${apiUrl}/cases/${caseId}`, {
         credentials: "include",
@@ -113,12 +130,36 @@ export default function CasePage() {
         return null;
       }
       const payload = await readJson(response);
-      const parsedCase = readCaseDetail(payload.case);
+      let parsedCase = readCaseDetail(payload.case);
       if (!response.ok || !parsedCase)
         throw new Error(errorMessage(payload, "Dossier introuvable."));
+
+      if (parsedCase.status === "DRAFT") {
+        setMessage("Préparation de votre dossier...");
+        setMessageTone("info");
+        const startResponse = await fetch(
+          `${apiUrl}/cases/${parsedCase.id}/start`,
+          {
+            method: "POST",
+            credentials: "include",
+          },
+        );
+        const startPayload = await readJson(startResponse);
+        const startedCase = readCaseDetail(startPayload.case);
+        if (!startResponse.ok || !startedCase) {
+          throw new Error(
+            errorMessage(
+              startPayload,
+              "Impossible de préparer automatiquement ce dossier.",
+            ),
+          );
+        }
+        parsedCase = startedCase;
+      }
+
       setAdministrativeCase(parsedCase);
       setFulfillmentSelection(parsedCase.fulfillmentMode);
-      const state = caseNotice(parsedCase, managedPostalEnabled);
+      const state = caseNotice(parsedCase, managedPostalEnabled && commerciallyEnabled);
       setMessage(state.message);
       setMessageTone(state.tone);
       return parsedCase;
@@ -129,10 +170,6 @@ export default function CasePage() {
       setMessageTone("error");
       return null;
     }
-  }
-
-  async function startCase() {
-    await sendCaseAction("start", "Lecture des exigences du règlement...");
   }
 
   async function updatePostalExpenseClaim(requested: boolean) {
@@ -174,31 +211,6 @@ export default function CasePage() {
           ? error.message
           : "Impossible d'enregistrer votre choix.",
       );
-      setMessageTone("error");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function sendCaseAction(action: string, progressMessage: string) {
-    setIsBusy(true);
-    setMessage(progressMessage);
-    setMessageTone("info");
-    try {
-      const response = await fetch(`${apiUrl}/cases/${caseId}/${action}`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const payload = await readJson(response);
-      const parsedCase = readCaseDetail(payload.case);
-      if (!response.ok || !parsedCase)
-        throw new Error(errorMessage(payload, "Action impossible."));
-      setAdministrativeCase(parsedCase);
-      const state = caseNotice(parsedCase, managedPostalEnabled);
-      setMessage(state.message);
-      setMessageTone(state.tone);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Action impossible.");
       setMessageTone("error");
     } finally {
       setIsBusy(false);
@@ -363,7 +375,7 @@ export default function CasePage() {
     }
   }
 
-  async function preparePostalQuote() {
+  async function preparePostalQuote(promoCode?: string) {
     if (!postalAccepted) {
       setMessage(
         "Autorisez la préparation technique du dossier pour obtenir le devis.",
@@ -378,6 +390,8 @@ export default function CasePage() {
       const response = await fetch(`${apiUrl}/cases/${caseId}/postal-quote`, {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ promoCode: promoCode?.trim() || undefined }),
       });
       const payload = await readJson(response);
       if (!response.ok)
@@ -694,9 +708,7 @@ export default function CasePage() {
 
         <div className="mx-auto mt-6 max-w-[1020px]">
           <div>
-            {administrativeCase.status === "DRAFT" ? (
-              <StartView isBusy={isBusy} onStart={startCase} />
-            ) : administrativeCase.missingDocuments.length > 0 ? (
+            {administrativeCase.missingDocuments.length > 0 ? (
               <DocumentsView
                 administrativeCase={administrativeCase}
                 isBusy={isBusy}
@@ -715,7 +727,7 @@ export default function CasePage() {
             ) : !administrativeCase.fulfillmentMode ? (
               <ChoiceView
                 selected={fulfillmentSelection}
-                managedPostalEnabled={managedPostalEnabled}
+                managedPostalEnabled={managedPostalEnabled && paymentEnabled}
                 isBusy={isBusy}
                 onSelect={setFulfillmentSelection}
                 onContinue={() =>
@@ -735,7 +747,7 @@ export default function CasePage() {
                 onSent={markSent}
                 onRefunded={markRefunded}
               />
-            ) : !managedPostalEnabled && !isPaid ? (
+            ) : !(managedPostalEnabled && paymentEnabled) && !isPaid ? (
               <ManagedPostalUnavailableView
                 isBusy={isBusy}
                 onFree={() => chooseFulfillment("SELF_SERVICE")}
@@ -754,6 +766,7 @@ export default function CasePage() {
                 administrativeCase={administrativeCase}
                 isBusy={isBusy}
                 onCheckout={startCheckout}
+                onApplyPromo={preparePostalQuote}
                 onFree={() => chooseFulfillment("SELF_SERVICE")}
               />
             ) : (

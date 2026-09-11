@@ -15,6 +15,9 @@ export type GameCatalogItem = {
   id: string;
   name: string;
   organizer: string;
+  reimbursementCents: number;
+  requiredDocuments: unknown;
+  constraints: Record<string, unknown>;
   validFrom: string | null;
   validUntil: string | null;
 };
@@ -121,6 +124,17 @@ export function readGameCatalog(value: unknown): GameChannel[] {
               id: game.id,
               name: game.name,
               organizer: game.organizer,
+              reimbursementCents:
+                typeof game.reimbursementCents === "number"
+                  ? game.reimbursementCents
+                  : 0,
+              requiredDocuments: game.requiredDocuments,
+              constraints:
+                game.constraints &&
+                typeof game.constraints === "object" &&
+                !Array.isArray(game.constraints)
+                  ? (game.constraints as Record<string, unknown>)
+                  : {},
               validFrom:
                 typeof game.validFrom === "string" ? game.validFrom : null,
               validUntil:

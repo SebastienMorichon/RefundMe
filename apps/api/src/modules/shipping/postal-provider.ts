@@ -67,6 +67,7 @@ export function createPostalProvider(): PostalProvider {
   const configured = (process.env.POSTAL_PROVIDER ?? "mock")
     .trim()
     .toLowerCase();
+  if (configured === "manual") return new ManualPostalProvider();
   if (configured !== "service_postal") return new MockPostalProvider();
   const apiKey = process.env.SERVICE_POSTAL_API_KEY?.trim();
   if (!apiKey) {
@@ -89,6 +90,29 @@ export function createPostalProvider(): PostalProvider {
     apiKey,
     environment === "production" ? "production" : "sandbox",
   );
+}
+
+class ManualPostalProvider implements PostalProvider {
+  readonly name = "manual";
+  readonly environment = "production";
+
+  async preview(input: PostalPreviewInput): Promise<PostalQuote> {
+    return {
+      provider: this.name,
+      environment: this.environment,
+      uid: `manual-${input.caseId}-${randomUUID()}`,
+      postageCents: input.product === "vertesuivi" ? 202 : 160,
+      serviceCents: 0,
+      totalCents: input.product === "vertesuivi" ? 202 : 160,
+      previewUrl: null,
+    };
+  }
+
+  async submit(): Promise<void> {}
+
+  async tracking(): Promise<PostalTracking> {
+    return { trackingNumber: null, proofOfDepositUrl: null, events: [] };
+  }
 }
 
 class MockPostalProvider implements PostalProvider {

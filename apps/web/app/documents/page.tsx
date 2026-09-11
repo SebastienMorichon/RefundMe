@@ -370,6 +370,22 @@ export default function DocumentsPage() {
           errorMessage(payload, "Impossible d’enregistrer votre vérification."),
         );
       }
+
+      setMessage("Préparation de votre dossier...");
+      const startResponse = await fetch(`${apiUrl}/cases/${rawCase.id}/start`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const startPayload = await readJson(startResponse);
+      if (!startResponse.ok) {
+        throw new Error(
+          errorMessage(
+            startPayload,
+            "Impossible de préparer automatiquement votre dossier.",
+          ),
+        );
+      }
+
       setAnalysis((current) =>
         current ? { ...current, smsCount, amountCents } : current,
       );

@@ -21,6 +21,7 @@ import {
   lockStorageWriteReservation,
   StorageWriteReservations,
 } from "../../platform/storage-write-reservations";
+import { isSensitiveDocumentWatermarkingEnabled } from "../../platform/feature-flags";
 
 const sensitiveKinds = [
   DocumentKind.IDENTITY_DOCUMENT,
@@ -233,6 +234,12 @@ export class DocumentLifecycleService implements OnModuleInit, OnModuleDestroy {
     dryRun: boolean;
     limit: number;
   }) {
+    if (!isSensitiveDocumentWatermarkingEnabled()) {
+      return input.dryRun
+        ? { dryRun: true, disabled: true, candidates: [] }
+        : { dryRun: false, disabled: true, results: [] };
+    }
+
     const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
     const candidates = await this.prisma.document.findMany({
       where: {
@@ -1101,16 +1108,20 @@ export class DocumentLifecycleService implements OnModuleInit, OnModuleDestroy {
     > | null,
   ): Promise<void> {
     if (!stored) {
-      await this.storageReservations.cancel(reservationId).catch(() => undefined);
+      await this.storageReservations
+        .cancel(reservationId)
+        .catch(() => undefined);
       return;
     }
     try {
       await this.storage.deleteObject(stored);
-      await this.storageReservations.cancel(reservationId).catch(() => undefined);
+      await this.storageReservations
+        .cancel(reservationId)
+        .catch(() => undefined);
     } catch {
-      await this.storageReservations.markStored(reservationId, stored).catch(
-        () => undefined,
-      );
+      await this.storageReservations
+        .markStored(reservationId, stored)
+        .catch(() => undefined);
     }
   }
 

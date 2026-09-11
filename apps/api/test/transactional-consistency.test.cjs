@@ -222,7 +222,9 @@ test("paid webhook updates only the exact PENDING payment under the checkout loc
     status: "PENDING",
     amountCents: 799,
     currency: "eur",
-    stripeCheckoutSession: "cs_exact",
+    provider: "sumup",
+    providerCheckoutId: "sumup_exact",
+    providerReference: "lydoc-case-1-reference",
     paidAt: null,
   };
   const transaction = {
@@ -249,22 +251,19 @@ test("paid webhook updates only the exact PENDING payment under the checkout loc
     },
     { sendCaseEvent: async () => {} },
   );
-  await service.markCheckoutPaid({
-    id: "cs_exact",
-    payment_status: "paid",
-    amount_total: 799,
-    currency: "eur",
-    payment_intent: "pi_exact",
-    metadata: { caseId: "case-1" },
+  await service.markCheckoutPaid("case-1", {
+    id: "sumup_exact",
+    status: "PAID",
+    amount: 7.99,
+    currency: "EUR",
+    checkout_reference: "lydoc-case-1-reference",
+    transactions: [{ id: "transaction_exact", status: "SUCCESSFUL" }],
   });
   assert.deepEqual(locks, ["stripe-checkout:case-1"]);
   assert.deepEqual(paymentWhere, {
     id: "payment-1",
-    caseId: "case-1",
     status: "PENDING",
-    stripeCheckoutSession: "cs_exact",
-    amountCents: 799,
-    currency: "eur",
+    providerCheckoutId: "sumup_exact",
   });
   assert.equal(shipped, 1);
 });

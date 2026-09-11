@@ -21,13 +21,17 @@ import {
   documentRequirementShortName,
   findMissingDocumentRequirements,
   isDocumentRequirementSupplied,
+  isUsableCaseDocument,
   readDocumentRequirements,
 } from "../documents/document-requirements";
 import { missingCustomerProfileFields } from "../identity/customer-profile";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { requireDocumentEligibleForAi } from "../../platform/ai-document-policy";
-import { requireManagedPostalEnabled } from "../../platform/feature-flags";
+import {
+  isSensitiveDocumentWatermarkingEnabled,
+  requireManagedPostalEnabled,
+} from "../../platform/feature-flags";
 import {
   LocalPdfDlpBusyError,
   LocalPdfDlpService,
@@ -319,7 +323,12 @@ export class EligibilityService {
         const ruleSnapshot = createCaseRuleSnapshot(matchedRule);
         const attachedKinds = new Set(
           existingCase.documents
-            .filter(({ document }) => isUsableCaseDocument(document))
+            .filter(({ document }) =>
+              isUsableCaseDocument(
+                document,
+                isSensitiveDocumentWatermarkingEnabled(),
+              ),
+            )
             .map(({ document }) => document.kind),
         );
         const missingRequirements = missingRequiredDocumentLabels(
@@ -1476,7 +1485,12 @@ export class EligibilityService {
     );
     const attachedKinds = new Set<string>(
       administrativeCase.documents
-        .filter(({ document }) => isUsableCaseDocument(document))
+        .filter(({ document }) =>
+          isUsableCaseDocument(
+            document,
+            isSensitiveDocumentWatermarkingEnabled(),
+          ),
+        )
         .map(({ document }) => document.kind),
     );
     const required = requiredDocuments.map((document) => {
@@ -1550,6 +1564,9 @@ export class EligibilityService {
             simulation:
               administrativeCase.postalShipment.provider === "mock" ||
               administrativeCase.postalShipment.environment !== "production",
+            pricing: readPricingSnapshot(
+              administrativeCase.postalShipment.pricingSnapshotJson,
+            ),
           }
         : null,
       validation: administrativeCase.validatedAt
@@ -1757,6 +1774,24 @@ export class EligibilityService {
   }
 }
 
+function readPricingSnapshot(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const pricing = value as Record<string, unknown>;
+  if (
+    typeof pricing.baseServiceFeeCents !== "number" ||
+    typeof pricing.serviceFeeCents !== "number" ||
+    typeof pricing.discountCents !== "number"
+  ) return null;
+  return {
+    baseServiceFeeCents: pricing.baseServiceFeeCents,
+    serviceFeeCents: pricing.serviceFeeCents,
+    discountCents: pricing.discountCents,
+    discountLabel:
+      typeof pricing.discountLabel === "string" ? pricing.discountLabel : null,
+    promoCode: typeof pricing.promoCode === "string" ? pricing.promoCode : null,
+  };
+}
+
 function ocrTextContext(documentId: string): string {
   return `ocr-result:${documentId}`;
 }
@@ -1951,18 +1986,4 @@ function missingRequiredDocumentLabels(
   return findMissingDocumentRequirements(value, attachedKinds).map((document) =>
     documentRequirementShortName(document.kind),
   );
-}
-
-function isUsableCaseDocument(document: {
-  kind: DocumentKind;
-  watermarked: boolean;
-}): boolean {
-  if (
-    document.kind !== DocumentKind.IDENTITY_DOCUMENT &&
-    document.kind !== DocumentKind.BANK_DETAILS
-  ) {
-    return true;
-  }
-
-  return document.watermarked;
 }

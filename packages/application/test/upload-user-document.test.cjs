@@ -307,6 +307,57 @@ test("watermarks sensitive documents before encrypted storage", async () => {
   assert.equal(document.watermarked, true);
 });
 
+test("stores sensitive documents without a watermark when the protection is disabled", async () => {
+  const storage = createStorage();
+  const watermarker = createWatermarker({
+    async watermark() {
+      assert.fail("watermarker should not be called");
+    },
+  });
+  let persistedInput;
+  const documents = {
+    async create(input) {
+      persistedInput = input;
+      return {
+        id: "document-1",
+        status: "UPLOADED",
+        encrypted: true,
+        ...input,
+      };
+    },
+  };
+  const scanner = createScanner();
+  const useCase = new UploadUserDocument(
+    documents,
+    storage,
+    watermarker,
+    scanner,
+    undefined,
+    { watermarkSensitiveDocuments: false },
+  );
+
+  const document = await useCase.execute({
+    ownerId: "user-1",
+    kind: "BANK_DETAILS",
+    originalName: "rib.pdf",
+    mimeType: "application/pdf",
+    bytes: validPdf,
+  });
+
+  assert.equal(watermarker.calls.length, 0);
+  assert.equal(scanner.calls.length, 1);
+  assert.equal(storage.stored.length, 1);
+  assert.equal(
+    Buffer.from(storage.stored[0].bytes).toString(),
+    validPdf.toString(),
+  );
+  assert.equal(persistedInput.watermarked, false);
+  assert.equal(persistedInput.watermarkVersion, null);
+  assert.equal(persistedInput.watermarkReference, null);
+  assert.equal(persistedInput.watermarkedAt, null);
+  assert.equal(document.watermarked, false);
+});
+
 test("does not watermark ordinary documents", async () => {
   const storage = createStorage();
   const watermarker = createWatermarker({

@@ -124,11 +124,15 @@ test("calculates the configurable customer price independently from provider cos
     {
       product: "vertesuivi",
       pageCount: 7,
-      serviceFeeCents: 299,
-      printingCents: 276,
+      baseServiceFeeCents: 99,
+      serviceFeeCents: 99,
+      discountCents: 0,
+      discountLabel: null,
+      promoCode: null,
+      printingCents: 210,
       postageCents: 202,
-      postalTotalCents: 478,
-      grandTotalCents: 777,
+      postalTotalCents: 412,
+      grandTotalCents: 511,
     },
   );
 });

@@ -6,6 +6,7 @@ const {
 } = require("../dist/platform/ai-document-policy.js");
 const {
   isManagedPostalEnabled,
+  isSensitiveDocumentWatermarkingEnabled,
   requireManagedPostalEnabled,
 } = require("../dist/platform/feature-flags.js");
 const {
@@ -13,6 +14,9 @@ const {
   aiDailyQuotaLimits,
   caseDeletionBlockReason,
 } = require("../dist/modules/eligibility/eligibility.service.js");
+const {
+  isUsableCaseDocument,
+} = require("../dist/modules/documents/document-requirements.js");
 const {
   classifyVisibleOrangeInvoiceText,
 } = require("../dist/platform/local-pdf-dlp.service.js");
@@ -34,6 +38,67 @@ test("managed postal is disabled unless explicitly enabled", () => {
     true,
   );
   assert.throws(() => requireManagedPostalEnabled({}), /bientôt disponible/);
+});
+
+test("sensitive document watermarking is disabled outside production", () => {
+  assert.equal(isSensitiveDocumentWatermarkingEnabled({}), false);
+  assert.equal(
+    isSensitiveDocumentWatermarkingEnabled({ NODE_ENV: "production" }),
+    true,
+  );
+  assert.equal(
+    isSensitiveDocumentWatermarkingEnabled({
+      NODE_ENV: "development",
+    }),
+    false,
+  );
+});
+
+test("accepts unwatermarked sensitive case documents only when watermarking is disabled", () => {
+  const bankDetails = { kind: "BANK_DETAILS", watermarked: false };
+  assert.equal(isUsableCaseDocument(bankDetails, true), false);
+  assert.equal(isUsableCaseDocument(bankDetails, false), true);
+  assert.equal(
+    isUsableCaseDocument(
+      { kind: "IDENTITY_DOCUMENT", watermarked: true },
+      true,
+    ),
+    true,
+  );
+  assert.equal(
+    isUsableCaseDocument({ kind: "ORANGE_INVOICE", watermarked: false }, true),
+    true,
+  );
+});
+
+test("watermark migration is a no-op when watermarking is disabled", async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  try {
+    const service = new DocumentLifecycleService({}, {}, {}, {});
+    assert.deepEqual(
+      await service.migrateSensitiveDocuments({
+        actorId: "admin-1",
+        dryRun: true,
+        limit: 25,
+      }),
+      { dryRun: true, disabled: true, candidates: [] },
+    );
+    assert.deepEqual(
+      await service.migrateSensitiveDocuments({
+        actorId: "admin-1",
+        dryRun: false,
+        limit: 25,
+      }),
+      { dryRun: false, disabled: true, results: [] },
+    );
+  } finally {
+    if (previousNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+  }
 });
 
 test("only telecom invoices and game rules can enter an AI flow", () => {

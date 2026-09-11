@@ -9,6 +9,12 @@ export function isManagedPostalEnabled(
   return environment.MANAGED_POSTAL_ENABLED?.trim().toLowerCase() === "true";
 }
 
+export function isSensitiveDocumentWatermarkingEnabled(
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return environment.NODE_ENV === "production";
+}
+
 export function requireManagedPostalEnabled(
   environment: NodeJS.ProcessEnv = process.env,
 ): void {

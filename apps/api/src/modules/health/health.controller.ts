@@ -408,10 +408,8 @@ export class HealthController {
     }
 
     if (managedPostal) {
-      requireConfigured(invalid, "STRIPE_SECRET_KEY", { prefix: "sk_live_" });
-      requireConfigured(invalid, "STRIPE_WEBHOOK_SECRET", {
-        prefix: "whsec_",
-      });
+      requireConfigured(invalid, "SUMUP_API_KEY", { minimumLength: 16 });
+      requireConfigured(invalid, "SUMUP_MERCHANT_CODE", { minimumLength: 3 });
     }
 
     if (postalProvider === "service_postal") {
@@ -419,6 +417,9 @@ export class HealthController {
       requireConfigured(invalid, "SERVICE_POSTAL_WEBHOOK_SECRET", {
         minimumLength: 24,
       });
+    }
+    if (!["mock", "manual", "service_postal"].includes(postalProvider)) {
+      invalid.push("POSTAL_PROVIDER");
     }
     if (
       postalProduction &&

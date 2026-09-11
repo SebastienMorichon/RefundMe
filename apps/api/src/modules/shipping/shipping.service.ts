@@ -41,8 +41,9 @@ export class ShippingService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async quote(caseId: string, ownerId: string) {
+  async quote(caseId: string, ownerId: string, promoCode?: string) {
     requireManagedPostalEnabled();
+    await this.pricing.requirePaymentEnabled();
     const administrativeCase = await this.prisma.administrativeCase.findFirst({
       where: { id: caseId, ownerId, owner: { accountDeletedAt: null } },
       include: { postalShipment: true, payment: true },
@@ -91,7 +92,11 @@ export class ShippingService {
 
     const packet = await this.packets.generatePostalPacket(caseId, ownerId);
     const pageCount = (await PDFDocument.load(packet.bytes)).getPageCount();
-    const customerPricing = await this.pricing.calculate(pageCount);
+    const customerPricing = await this.pricing.calculate(
+      pageCount,
+      undefined,
+      promoCode,
+    );
     const product = customerPricing.product;
     const provider = createPostalProvider();
     const quote = await provider.preview({
@@ -293,7 +298,9 @@ export class ShippingService {
         providerRequestId,
       });
       if (finalized) {
-        await this.notifications.sendCaseEvent(caseId, "POSTAL_SUBMITTED");
+        if (shipment.provider !== "manual") {
+          await this.notifications.sendCaseEvent(caseId, "POSTAL_SUBMITTED");
+        }
       } else {
         await this.markSubmissionOutcomeUnknown(
           shipment.id,
@@ -772,8 +779,27 @@ export class ShippingService {
       deliveredAt: shipment.deliveredAt,
       simulation:
         shipment.provider === "mock" || shipment.environment !== "production",
+      pricing: readCustomerPricingSnapshot(shipment.pricingSnapshotJson),
     };
   }
+}
+
+function readCustomerPricingSnapshot(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const pricing = value as Record<string, unknown>;
+  if (
+    typeof pricing.baseServiceFeeCents !== "number" ||
+    typeof pricing.serviceFeeCents !== "number" ||
+    typeof pricing.discountCents !== "number"
+  ) return null;
+  return {
+    baseServiceFeeCents: pricing.baseServiceFeeCents,
+    serviceFeeCents: pricing.serviceFeeCents,
+    discountCents: pricing.discountCents,
+    discountLabel:
+      typeof pricing.discountLabel === "string" ? pricing.discountLabel : null,
+    promoCode: typeof pricing.promoCode === "string" ? pricing.promoCode : null,
+  };
 }
 
 export type PostalWebhookAuthentication = Readonly<{

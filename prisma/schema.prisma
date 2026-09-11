@@ -75,6 +75,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum DiscountType {
+  FIXED_AMOUNT
+  PERCENTAGE
+}
+
 enum ContactDeliveryStatus {
   PENDING
   SENT
@@ -400,6 +405,14 @@ model Payment {
   currency              String        @default("eur")
   stripeCheckoutSession String?
   stripePaymentIntent   String?
+  provider              String        @default("stripe")
+  providerCheckoutId    String?       @unique
+  providerReference     String?       @unique
+  providerTransactionId String?
+  serviceFeeCents       Int?
+  discountCents         Int           @default(0)
+  discountLabel         String?
+  promoCode             String?
   paidAt                DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
@@ -505,15 +518,39 @@ model NotificationDelivery {
 
 model PricingConfiguration {
   id                             String   @id @default("default")
-  serviceFeeCents                Int      @default(299)
+  paymentEnabled                 Boolean  @default(false)
+  serviceFeeCents                Int      @default(99)
   printingBaseCents              Int      @default(90)
   printingPerAdditionalPageCents Int      @default(31)
   greenLetterCents               Int      @default(152)
+  managedPostageCents            Int      @default(160)
   trackedGreenLetterCents        Int      @default(202)
   defaultPostalProduct           String   @default("vertesuivi")
+  promotionEnabled               Boolean  @default(false)
+  promotionLabel                 String?
+  promotionDiscountType          DiscountType?
+  promotionDiscountValue         Int      @default(0)
+  promotionStartsAt              DateTime?
+  promotionEndsAt                DateTime?
   updatedById                    String?
   createdAt                      DateTime @default(now())
   updatedAt                      DateTime @updatedAt
+}
+
+model PromoCode {
+  id            String       @id @default(cuid())
+  code          String       @unique @db.VarChar(40)
+  label         String       @db.VarChar(120)
+  discountType  DiscountType
+  discountValue Int
+  enabled       Boolean      @default(true)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  updatedById   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([enabled, startsAt, endsAt])
 }
 
 model AuditLog {

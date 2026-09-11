@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
+import { sensitiveDocumentWatermarkingEnabled } from "../../lib/feature-flags";
 
 export const metadata: Metadata = { title: "Politique de confidentialité" };
 
@@ -91,10 +92,9 @@ export default function PrivacyPage() {
       content: (
         <>
           <p>
-            Avant leur stockage, les RIB et pièces d’identité reçoivent
-            localement un filigrane précisant leur usage limité au dossier de
-            remboursement. Tous les documents sont ensuite chiffrés et rattachés
-            au compte qui les a déposés.
+            {sensitiveDocumentWatermarkingEnabled
+              ? "Avant leur stockage, les RIB et pièces d’identité reçoivent localement un filigrane précisant leur usage limité au dossier de remboursement. Tous les documents sont ensuite chiffrés et rattachés au compte qui les a déposés."
+              : "Dans la version locale, aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les fichiers déjà filigranés le restent jusqu’à leur remplacement. Comme tous les autres documents, ils restent chiffrés et rattachés au compte qui les a déposés."}
           </p>
           <p>
             Un document est déchiffré uniquement pour une opération autorisée,
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
             lorsqu’il sera configuré.
           </p>
           <p>
-            Stripe et le prestataire postal ne reçoivent actuellement aucune
+            SumUp et le prestataire postal ne reçoivent actuellement aucune
             donnée, car l’offre payante est désactivée. La liste, la
             localisation et les garanties contractuelles de chaque prestataire
             seront vérifiées avant l’ouverture publique.
@@ -220,7 +220,11 @@ export default function PrivacyPage() {
       description="Ce que Lydoc utilise, pourquoi et les protections appliquées à vos documents."
     >
       <LegalDocument
-        updatedAt="2 août 2026 - version de pré-lancement"
+        updatedAt={
+          sensitiveDocumentWatermarkingEnabled
+            ? "2 août 2026 - version de pré-lancement"
+            : "9 septembre 2026 - configuration locale"
+        }
         sections={sections}
       />
     </PublicPage>

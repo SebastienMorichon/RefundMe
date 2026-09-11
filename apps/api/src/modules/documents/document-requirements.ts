@@ -52,6 +52,20 @@ export function isDocumentRequirementSupplied(
   );
 }
 
+export function isUsableCaseDocument(
+  document: Readonly<{ kind: DocumentKind; watermarked: boolean }>,
+  watermarkingRequired = true,
+): boolean {
+  if (
+    document.kind !== DocumentKind.IDENTITY_DOCUMENT &&
+    document.kind !== DocumentKind.BANK_DETAILS
+  ) {
+    return true;
+  }
+
+  return !watermarkingRequired || document.watermarked;
+}
+
 export function findMissingDocumentRequirements(
   value: unknown,
   attachedKinds: Iterable<string>,

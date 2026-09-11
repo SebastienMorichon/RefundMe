@@ -8,14 +8,19 @@ import {
   Trash2,
 } from "lucide-react";
 import { PublicPage } from "../../components/public-page";
+import { sensitiveDocumentWatermarkingEnabled } from "../../lib/feature-flags";
 
 export const metadata: Metadata = { title: "Sécurité" };
 
 const safeguards = [
   [
     FileLock2,
-    "Filigranage et chiffrement",
-    "Les RIB et pièces d’identité sont filigranés avant stockage. Chaque fichier est ensuite chiffré afin de limiter son exposition.",
+    sensitiveDocumentWatermarkingEnabled
+      ? "Filigranage et chiffrement"
+      : "Chiffrement des documents",
+    sensitiveDocumentWatermarkingEnabled
+      ? "Les RIB et pièces d’identité sont filigranés avant stockage. Chaque fichier est ensuite chiffré afin de limiter son exposition."
+      : "Dans la version locale, aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les anciens fichiers filigranés le restent jusqu’à leur remplacement. Chaque fichier reste chiffré.",
   ],
   [
     KeyRound,
