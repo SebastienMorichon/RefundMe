@@ -143,10 +143,10 @@ export function StatusBadge({ status }: { status: string }) {
 export function formatStatus(status: string): string {
   const labels: Record<string, string> = {
     UPLOADED: "Déposée",
-    OCR_PENDING: "Lecture en cours",
-    OCR_DONE: "Texte extrait",
-    ANALYSIS_PENDING: "Analyse en cours",
-    ANALYZED: "Analysée",
+    OCR_PENDING: "Ancien traitement en cours",
+    OCR_DONE: "Ancien traitement terminé",
+    ANALYSIS_PENDING: "Préparation en cours",
+    ANALYZED: "Utilisée",
     FAILED: "Échec",
     DRAFT: "À préparer",
     WAITING_FOR_USER_DOCUMENTS: "Pièces attendues",

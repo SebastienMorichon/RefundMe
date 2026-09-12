@@ -1,13 +1,9 @@
 import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
-import { execFile } from "node:child_process";
 import { access, mkdir, rm, statfs, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { promisify } from "node:util";
 import { PrismaService } from "../prisma/prisma.service";
 import { parseTrustedProxyCidrs } from "../../platform/http-protection";
-
-const executeFile = promisify(execFile);
 
 @Controller("health")
 export class HealthController {
@@ -27,7 +23,6 @@ export class HealthController {
       database: "ready",
       storage: "ready",
       catalog: "ready",
-      localDocumentControl: "ready",
       ...deployment,
       uptimeSeconds: Math.round(process.uptime()),
     };
@@ -48,7 +43,6 @@ export class HealthController {
       database: "ready",
       storage: "ready",
       catalog: "ready",
-      localDocumentControl: "ready",
       ...deployment,
     };
   }
@@ -64,7 +58,6 @@ export class HealthController {
       this.assertDatabaseReady(),
       this.assertStorageReady(),
       this.assertCatalogReady(),
-      this.assertLocalDocumentControlReady(),
     ]).then(() => undefined);
     const probe = { expiresAt: now + 10_000, promise };
     this.readinessProbe = probe;
@@ -155,28 +148,6 @@ export class HealthController {
     } catch {
       throw new ServiceUnavailableException(
         "Catalogue de reglements approuves indisponible.",
-      );
-    }
-  }
-
-  private async assertLocalDocumentControlReady(): Promise<void> {
-    if (process.env.NODE_ENV !== "production") return;
-    try {
-      await Promise.all([
-        executeFile("pdftoppm", ["-v"], {
-          timeout: 2_000,
-          windowsHide: true,
-          maxBuffer: 64 * 1024,
-        }),
-        executeFile("tesseract", ["--version"], {
-          timeout: 2_000,
-          windowsHide: true,
-          maxBuffer: 64 * 1024,
-        }),
-      ]);
-    } catch {
-      throw new ServiceUnavailableException(
-        "Controle local de confidentialite indisponible.",
       );
     }
   }
@@ -329,8 +300,6 @@ export class HealthController {
     requireIntegerRange(invalid, "AI_DAILY_ACCOUNT_CALL_LIMIT", 0, 1_000);
     requireIntegerRange(invalid, "MISTRAL_DAILY_CALL_LIMIT", 0, 100_000);
     requireIntegerRange(invalid, "MISTRAL_MAX_CONCURRENT_REQUESTS", 1, 20);
-    requireIntegerRange(invalid, "AI_LOCAL_DLP_CONCURRENCY", 1, 8);
-    requireIntegerRange(invalid, "AI_LOCAL_DLP_MAX_PAGES", 1, 20);
     requireIntegerRange(
       invalid,
       "DOCUMENT_PENDING_UPLOAD_GLOBAL_BYTES",

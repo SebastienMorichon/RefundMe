@@ -205,7 +205,7 @@ export default function DashboardPage() {
                 </span>
               </h1>
               <p className="mt-5 max-w-[430px] text-sm leading-6 text-[#708078]">
-                Lydoc repère les SMS surtaxés de vos jeux-concours.
+                Déclarez les SMS surtaxés de vos jeux-concours.
                 <br />
                 Suivez chaque demande, de la facture au remboursement confirmé.
               </p>
@@ -326,7 +326,7 @@ export default function DashboardPage() {
                   </h3>
                   <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#738078]">
                     {reimbursementCreationEnabled
-                      ? "Analysez une facture mobile pour détecter vos premiers SMS+ potentiellement remboursables."
+                      ? "Déposez une facture mobile et indiquez vos premiers SMS+ potentiellement remboursables."
                       : "Vos demandes de remboursement apparaîtront ici dès qu’un dossier sera disponible."}
                   </p>
                   {reimbursementCreationEnabled ? (
@@ -468,7 +468,7 @@ function CaseProgressPanel({ item }: { item: CaseSummary | null }) {
             Votre parcours commence ici
           </p>
           <p className="mt-1 text-xs leading-5 text-[#738078]">
-            Analysez une facture mobile pour rechercher vos SMS surtaxés.
+            Déposez une facture mobile et recopiez vos frais de SMS surtaxés.
           </p>
         </div>
         <Image

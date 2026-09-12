@@ -20,7 +20,7 @@ import { PublicHeader } from "../components/public-header";
 export const metadata: Metadata = {
   title: "Remboursement des SMS surtaxés de jeux-concours",
   description:
-    "Lydoc analyse votre facture mobile, repère les SMS surtaxés liés aux jeux-concours et prépare gratuitement un dossier conforme au règlement.",
+    "Lydoc prépare gratuitement votre dossier de remboursement de SMS surtaxés liés aux jeux-concours, à partir des informations que vous confirmez.",
 };
 
 const steps = [
@@ -34,9 +34,9 @@ const steps = [
   {
     number: "02",
     icon: FileSearch,
-    title: "Lydoc vérifie vos SMS+",
+    title: "Recopiez vos frais SMS+",
     description:
-      "Les SMS surtaxés sont repérés puis rapprochés du règlement du jeu validé par notre équipe.",
+      "Indiquez le nombre de SMS et leur montant total tels qu’ils apparaissent sur la facture.",
   },
   {
     number: "03",
@@ -50,15 +50,15 @@ const steps = [
 const faqs = [
   [
     "Combien coûte Lydoc ?",
-    "Pendant la phase de lancement, l’analyse de vos SMS+, la constitution et le téléchargement du dossier sont entièrement gratuits. L’envoi postal pris en charge sera proposé ultérieurement.",
+    "Pendant la phase de lancement, la constitution et le téléchargement du dossier sont entièrement gratuits. L’envoi postal pris en charge sera proposé ultérieurement.",
   ],
   [
-    "Quels SMS surtaxés puis-je faire analyser ?",
-    "Lydoc recherche les SMS+ facturés après une participation à un jeu-concours. Ils doivent apparaître sur votre facture mobile détaillée et le règlement du jeu doit prévoir une demande de remboursement.",
+    "Quels SMS surtaxés puis-je déclarer ?",
+    "Vous pouvez déclarer les SMS+ facturés après une participation à un jeu-concours. Ils doivent apparaître sur votre facture mobile détaillée et le règlement du jeu doit prévoir une demande de remboursement.",
   ],
   [
     "Lydoc garantit-il le remboursement ?",
-    "Non. Lydoc analyse les conditions, vous aide à constituer un dossier conforme et vous permet d’en suivre l’avancement. La décision finale appartient à l’organisateur.",
+    "Non. Lydoc applique les conditions du règlement sélectionné, vous aide à constituer un dossier conforme et vous permet d’en suivre l’avancement. La décision finale appartient à l’organisateur.",
   ],
 ];
 
@@ -88,9 +88,9 @@ export default function HomePage() {
                 .
               </h1>
               <p className="mt-6 max-w-[560px] text-base leading-7 text-[#4f5d78] sm:text-lg sm:leading-8">
-                Vous avez participé à un jeu-concours par SMS+ ? Lydoc analyse
-                votre facture mobile, vérifie si le règlement permet une demande
-                de remboursement et constitue gratuitement votre dossier prêt à
+                Vous avez participé à un jeu-concours par SMS+ ? Indiquez les
+                frais figurant sur votre facture mobile : Lydoc applique le bon
+                règlement et constitue gratuitement votre dossier prêt à
                 envoyer.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -98,7 +98,7 @@ export default function HomePage() {
                   href="/inscription"
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#087a55] px-6 py-3 text-sm font-extrabold text-white shadow-[0_8px_0_#065d42] transition-transform hover:-translate-y-0.5 hover:bg-[#066344]"
                 >
-                  Analyser ma facture mobile <ArrowRight size={17} />
+                  Préparer mon remboursement <ArrowRight size={17} />
                 </a>
                 <a
                   href="#fonctionnement"
@@ -399,12 +399,12 @@ export default function HomePage() {
             <div className="max-w-xl">
               <p className="eyebrow">Gratuit pendant le lancement</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight text-[#17211d] sm:text-4xl">
-                Analysez vos SMS+ et téléchargez votre dossier conforme.
+                Déclarez vos SMS+ et téléchargez votre dossier conforme.
               </h2>
               <p className="mt-5 text-base leading-7 text-[#5d6881]">
-                La création du compte, l’analyse de votre facture mobile et le
-                dossier de remboursement complet sont gratuits. Vous n’avez rien
-                à payer pour vérifier vos SMS surtaxés.
+                La création du compte et le dossier de remboursement complet
+                sont gratuits. Vous n’avez rien à payer pour préparer votre
+                demande concernant vos SMS surtaxés.
               </p>
             </div>
             <div className="grid gap-3">
@@ -507,7 +507,7 @@ export default function HomePage() {
               href="/inscription"
               className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-[#087a55] px-5 py-3 text-sm font-extrabold text-white hover:bg-[#066344]"
             >
-              Analyser ma facture mobile <ArrowRight size={17} />
+              Préparer mon remboursement <ArrowRight size={17} />
             </a>
           </div>
         </section>

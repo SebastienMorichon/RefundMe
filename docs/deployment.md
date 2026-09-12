@@ -2,7 +2,7 @@
 
 ## Profil de bêta publique gratuite
 
-Le premier déploiement public utilise `LYDOC_DEPLOYMENT_PROFILE=free-beta`. L’OCR Mistral et la génération gratuite du dossier restent disponibles. Le paiement, l’impression et l’envoi postal géré restent désactivés côté API et navigateur avec :
+Le premier déploiement public utilise `LYDOC_DEPLOYMENT_PROFILE=free-beta`. La saisie manuelle des frais SMS et la génération gratuite du dossier restent disponibles. Mistral est réservé à l’import administratif des règlements. Le paiement, l’impression et l’envoi postal géré restent désactivés côté API et navigateur avec :
 
 ```dotenv
 MANAGED_POSTAL_ENABLED=false
@@ -13,8 +13,8 @@ SERVICE_POSTAL_PRODUCTION_ENABLED=false
 ```
 
 La bibliothèque client « Mes factures » reste masquée. Le parcours
-« Nouveau remboursement » conserve l’analyse de facture nécessaire à la
-création d’un dossier, sans exposer une page d’archives distincte.
+« Nouveau remboursement » conserve le dépôt de la facture et la saisie des
+frais nécessaires à la création d’un dossier, sans exposer une page d’archives distincte.
 
 Le support public, lui, reste opérationnel : `RESEND_API_KEY`, `RESEND_FROM_EMAIL` et `CONTACT_TO_EMAIL` sont obligatoires même si `NOTIFICATIONS_REQUIRED=false`. Les limites globales, par e-mail et par client (`CONTACT_DAILY_*` et `CONTACT_HOURLY_*`) doivent rester explicites et bornées.
 
@@ -47,7 +47,7 @@ Si le proxy est lui-même dans Compose, rattachez-le au réseau `edge`, retirez 
 - Docker Engine et Docker Compose récents, avec au moins 4 Go de RAM ;
 - deux noms DNS, certificats TLS et un proxy correctement durci ;
 - un domaine Resend vérifié et des adresses dédiées au support et à la sécurité ;
-- une clé Mistral et les accords de sous-traitance nécessaires au traitement OCR ;
+- une clé Mistral et les accords de sous-traitance nécessaires à l’import automatisé des règlements ;
 - un stockage hors hôte versionné pour les sauvegardes chiffrées ;
 - un gestionnaire de secrets distinct du stockage des sauvegardes.
 

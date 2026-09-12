@@ -382,8 +382,8 @@ function isPacketDownloadPath(path: string): boolean {
 /** Canonicalizes variable identifiers so changing an ID cannot evade a limit. */
 export function rateLimitBucketPath(path: string): string {
   if (isPacketDownloadPath(path)) return "/cases/:id/dossier.pdf";
-  if (/^\/documents\/[^/]+\/analyze$/.test(path)) {
-    return "/documents/:id/analyze";
+  if (/^\/documents\/[^/]+\/case$/.test(path)) {
+    return "/documents/:id/case";
   }
   if (/^\/documents\/[^/]+$/.test(path)) return "/documents/:id";
   return path;

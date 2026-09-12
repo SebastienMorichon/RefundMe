@@ -11,15 +11,11 @@ const {
 } = require("../dist/platform/feature-flags.js");
 const {
   EligibilityService,
-  aiDailyQuotaLimits,
   caseDeletionBlockReason,
 } = require("../dist/modules/eligibility/eligibility.service.js");
 const {
   isUsableCaseDocument,
 } = require("../dist/modules/documents/document-requirements.js");
-const {
-  classifyVisibleOrangeInvoiceText,
-} = require("../dist/platform/local-pdf-dlp.service.js");
 const {
   DocumentLifecycleService,
   automaticRetentionEnabled,
@@ -101,8 +97,8 @@ test("watermark migration is a no-op when watermarking is disabled", async () =>
   }
 });
 
-test("only telecom invoices and game rules can enter an AI flow", () => {
-  assert.equal(canSendDocumentToAi("ORANGE_INVOICE"), true);
+test("only game rules can enter an AI flow", () => {
+  assert.equal(canSendDocumentToAi("ORANGE_INVOICE"), false);
   assert.equal(canSendDocumentToAi("GAME_RULE_PDF"), true);
   assert.equal(canSendDocumentToAi("IDENTITY_DOCUMENT"), false);
   assert.equal(canSendDocumentToAi("BANK_DETAILS"), false);
@@ -112,138 +108,105 @@ test("only telecom invoices and game rules can enter an AI flow", () => {
   );
 });
 
-test("fails closed when a client labels sensitive or ambiguous content as an invoice", () => {
-  const identity = classifyVisibleOrangeInvoiceText(
-    "Carte nationale d identite Republique francaise Orange facture total TVA client",
+test("requires valid customer-confirmed SMS details before creating a case", async () => {
+  const service = new EligibilityService({}, {}, {});
+  await assert.rejects(
+    service.createCaseFromInvoice("doc-1", "user-1", "rule-1", 0, 299, true),
+    /nombre de SMS/,
   );
-  assert.deepEqual(identity, {
-    accepted: false,
-    reason: "SENSITIVE_MARKERS",
-  });
-  assert.equal(
-    classifyVisibleOrangeInvoiceText(
-      "Orange facture montant total TVA client IBAN FR76 1234 5678 9012 3456 7890 123",
-    ).accepted,
-    false,
+  await assert.rejects(
+    service.createCaseFromInvoice("doc-1", "user-1", "rule-1", 2, 0, true),
+    /montant/,
   );
-  assert.equal(
-    classifyVisibleOrangeInvoiceText(
-      "Orange facture montant total TVA R I B I B A N FR76 1234 5678 9012 3456 7890 123 B I C",
-    ).accepted,
-    false,
+  await assert.rejects(
+    service.createCaseFromInvoice("doc-1", "user-1", "rule-1", 2, 299, false),
+    /Confirmez/,
   );
-  assert.equal(
-    classifyVisibleOrangeInvoiceText("document illisible").accepted,
-    false,
-  );
-
-  const invoice = classifyVisibleOrangeInvoiceText(
-    "Orange France facture numero client montant total TVA abonnement mobile",
-  );
-  assert.deepEqual(invoice, {
-    accepted: true,
-    reason: "TRUSTED_ORANGE_INVOICE",
-  });
-  const bouyguesInvoice = classifyVisibleOrangeInvoiceText(
-    "Bouygues Telecom facture numero client montant total TVA abonnement mobile",
-  );
-  assert.deepEqual(bouyguesInvoice, {
-    accepted: true,
-    reason: "TRUSTED_ORANGE_INVOICE",
-  });
-  assert.equal(
-    classifyVisibleOrangeInvoiceText(
-      "Banque Bouygues Telecom releve d identite bancaire facture montant total mobile",
-    ).accepted,
-    false,
-  );
-  assert.equal(classifyVisibleOrangeInvoiceText("").accepted, false);
 });
 
-test("enforces an account quota before calling the OCR provider", async () => {
-  const previousAccountLimit = process.env.AI_DAILY_ACCOUNT_CALL_LIMIT;
-  const previousProviderLimit = process.env.MISTRAL_DAILY_CALL_LIMIT;
-  process.env.AI_DAILY_ACCOUNT_CALL_LIMIT = "1";
-  process.env.MISTRAL_DAILY_CALL_LIMIT = "100";
-  let quotaCountCalls = 0;
-  let providerCalls = 0;
-  const prisma = {
+test("creates a case from customer-entered SMS details without OCR", async () => {
+  let createdData;
+  const rule = {
+    id: "rule-1",
+    version: 3,
+    name: "Jeu du soir",
+    reimbursementCents: 99,
+    requiredDocuments: [],
+    constraintsJson: {},
+    validFrom: null,
+    validUntil: null,
+    reviewedAt: new Date("2026-09-01T00:00:00.000Z"),
+    organizer: { name: "M6" },
+  };
+  const createdCase = {
+    id: "case-1",
+    status: "DRAFT",
+    fulfillmentMode: null,
+    estimatedRecoverableCents: 297,
+    serviceFeeCents: 0,
+    confidence: null,
+    complianceSnapshotJson: {},
+    createdAt: new Date("2026-09-12T00:00:00.000Z"),
+  };
+  const transaction = {
+    $executeRaw: async () => 1,
     document: {
-      findFirst: async () => ({
-        id: "doc-1",
-        ownerId: "user-1",
-        kind: "ORANGE_INVOICE",
-        mimeType: "application/pdf",
-        storageBucket: "documents",
-        storageKey: "doc-1.enc",
-        checksumSha256: "a".repeat(64),
-        sizeBytes: 100,
-        ocrResult: null,
-      }),
+      findFirst: async () => ({ id: "doc-1" }),
+      update: async () => ({ id: "doc-1" }),
     },
-    gameRule: {
-      findFirst: async () => ({
-        id: "rule-1",
-        status: "APPROVED",
-        organizer: { name: "Orange" },
-      }),
+    gameRule: { findFirst: async () => ({ id: rule.id }) },
+    caseDocument: { findFirst: async () => null },
+    administrativeCase: {
+      create: async ({ data }) => {
+        createdData = data;
+        return {
+          ...createdCase,
+          complianceSnapshotJson: data.complianceSnapshotJson,
+        };
+      },
     },
-    auditLog: { create: async () => ({ id: "consent-1" }) },
-    $transaction: async (operation) =>
-      operation({
-        $executeRaw: async () => 1,
-        auditLog: {
-          count: async () => (quotaCountCalls++ === 0 ? 0 : 1),
-          create: async () => {
-            throw new Error("quota reservation must not be created");
-          },
-        },
-      }),
+    auditLog: { create: async () => ({ id: "audit-1" }) },
   };
   const service = new EligibilityService(
-    prisma,
     {
-      getDecryptedObject: async () =>
-        Buffer.from(
-          "%PDF-1.7 Orange France facture numero client montant total TVA abonnement mobile",
-        ),
+      document: {
+        findFirst: async () => ({
+          id: "doc-1",
+          kind: "ORANGE_INVOICE",
+          caseDocuments: [],
+        }),
+      },
+      gameRule: { findFirst: async () => rule },
+      $transaction: async (operation) => operation(transaction),
     },
     {},
-    undefined,
-    {
-      classify: async () => ({
-        accepted: true,
-        reason: "TRUSTED_ORANGE_INVOICE",
-      }),
-    },
+    {},
   );
-  service.mistralOcr = {
-    extractText: async () => {
-      providerCalls += 1;
-      return { provider: "mistral", text: "unexpected" };
-    },
-  };
 
-  try {
-    await assert.rejects(
-      service.analyzeInvoice("doc-1", "user-1", "rule-1", true),
-      (error) => error?.getStatus?.() === 429,
-    );
-    assert.equal(providerCalls, 0);
-  } finally {
-    restoreEnv("AI_DAILY_ACCOUNT_CALL_LIMIT", previousAccountLimit);
-    restoreEnv("MISTRAL_DAILY_CALL_LIMIT", previousProviderLimit);
-  }
+  const result = await service.createCaseFromInvoice(
+    "doc-1",
+    "user-1",
+    "rule-1",
+    3,
+    297,
+    true,
+  );
+
+  assert.equal(result.case.id, "case-1");
+  assert.equal(result.document.participationCount, 3);
+  assert.equal(createdData.estimatedRecoverableCents, 297);
+  assert.deepEqual(createdData.complianceSnapshotJson.detectedSmsCharges, [
+    {
+      label: "Saisie client : 3 SMS pour 2.97 EUR",
+      quantity: 3,
+      amountCents: 297,
+      evidence:
+        "Nombre de SMS et montant confirmes par le client sur sa facture",
+    },
+  ]);
 });
 
-test("bounds AI quotas and configures automatic retention safely", () => {
-  assert.deepEqual(
-    aiDailyQuotaLimits({
-      AI_DAILY_ACCOUNT_CALL_LIMIT: "0",
-      MISTRAL_DAILY_CALL_LIMIT: "999999999",
-    }),
-    { account: 0, provider: 100000 },
-  );
+test("configures automatic retention safely", () => {
   assert.equal(automaticRetentionEnabled({ NODE_ENV: "production" }), true);
   assert.equal(
     automaticRetentionEnabled({

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | Lydoc",
   },
   description:
-    "Lydoc analyse vos factures, prépare gratuitement votre dossier de remboursement et peut prendre en charge son envoi postal.",
+    "Lydoc vous aide à préparer gratuitement votre dossier de remboursement de SMS surtaxés et peut prendre en charge son envoi postal.",
   icons: {
     icon: "/brand/lydoc-mark.svg",
     shortcut: "/brand/lydoc-mark.svg",

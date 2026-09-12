@@ -68,13 +68,6 @@ $RuntimeRoot = Join-Path $env:USERPROFILE ".cache\codex-runtimes\codex-primary-r
 Add-PathIfExists (Join-Path $RuntimeRoot "node\bin")
 Add-PathIfExists (Join-Path $RuntimeRoot "bin\fallback")
 Add-PathIfExists (Join-Path $RuntimeRoot "bin\override")
-Add-PathIfExists (Join-Path $RuntimeRoot "native\poppler\Library\bin")
-Add-PathIfExists "C:\Program Files\Tesseract-OCR"
-
-$LocalTesseractData = Join-Path $ProjectRoot "tools\tesseract-data"
-if (Test-Path (Join-Path $LocalTesseractData "fra.traineddata")) {
-  Set-DefaultEnv "TESSDATA_PREFIX" $LocalTesseractData
-}
 
 $EnvLocalPath = Join-Path $ProjectRoot ".env.local"
 if (-not (Test-Path $EnvLocalPath)) {
@@ -132,7 +125,7 @@ if ($env:STRIPE_SECRET_KEY -eq "sk_test_change_me") {
 }
 
 if ($env:MISTRAL_API_KEY -eq "") {
-  Write-Host "    MISTRAL_API_KEY est vide. L'OCR Mistral sera indisponible tant que la cle n'est pas renseignee." -ForegroundColor Yellow
+  Write-Host "    MISTRAL_API_KEY est vide. L'import automatise des reglements sera indisponible tant que la cle n'est pas renseignee." -ForegroundColor Yellow
 }
 
 Write-Step "Verification des outils"
@@ -142,21 +135,6 @@ if (-not $PnpmCommand) {
   throw "pnpm est introuvable. Verifie que le runtime Codex existe dans $RuntimeRoot."
 }
 Write-Info "pnpm: $(pnpm --version)"
-
-$PdfToPpmCommand = Get-Command pdftoppm -ErrorAction SilentlyContinue
-$TesseractCommand = Get-Command tesseract -ErrorAction SilentlyContinue
-if (-not $PdfToPpmCommand) {
-  throw "pdftoppm est introuvable. Le controle local de confidentialite ne peut pas demarrer."
-}
-if (-not $TesseractCommand) {
-  throw "Tesseract OCR est introuvable. Installe UB-Mannheim.TesseractOCR avant de demarrer Lydoc."
-}
-$TesseractLanguages = (& tesseract --list-langs 2>$null) -join "`n"
-if ($TesseractLanguages -notmatch "(?m)^fra$" -or $TesseractLanguages -notmatch "(?m)^eng$") {
-  throw "Tesseract doit disposer des langues fra et eng pour le controle local de confidentialite."
-}
-Write-Info "pdftoppm: $($PdfToPpmCommand.Source)"
-Write-Info "tesseract: $($TesseractCommand.Source) (fra+eng)"
 
 if ($CheckOnly) {
   Write-Host ""

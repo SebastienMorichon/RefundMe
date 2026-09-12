@@ -1,22 +1,15 @@
 import {
   BadRequestException,
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { AnalyzeTelecomInvoiceEligibility } from "@lydoc/application";
 import {
   DocumentKind,
   DocumentStatus,
   Prisma,
   RuleStatus,
 } from "@prisma/client";
-import {
-  EncryptedSensitiveTextProvider,
-  LocalEncryptedObjectStorageProvider,
-} from "@lydoc/infrastructure";
-import { MistralOcrProvider } from "@lydoc/infrastructure";
+import type { LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
 import {
   documentRequirementShortName,
   findMissingDocumentRequirements,
@@ -27,16 +20,10 @@ import {
 import { missingCustomerProfileFields } from "../identity/customer-profile";
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { requireDocumentEligibleForAi } from "../../platform/ai-document-policy";
 import {
   isSensitiveDocumentWatermarkingEnabled,
   requireManagedPostalEnabled,
 } from "../../platform/feature-flags";
-import {
-  LocalPdfDlpBusyError,
-  LocalPdfDlpService,
-  LocalPdfDlpUnavailableError,
-} from "../../platform/local-pdf-dlp.service";
 import {
   lockCustomerProfile,
   lockDocumentLifecycle,
@@ -60,30 +47,26 @@ import {
 
 @Injectable()
 export class EligibilityService {
-  private readonly analyzer = new AnalyzeTelecomInvoiceEligibility();
-  private readonly mistralOcr = new MistralOcrProvider(
-    process.env.MISTRAL_API_KEY ?? "",
-  );
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: LocalEncryptedObjectStorageProvider,
+    _storage: LocalEncryptedObjectStorageProvider,
     private readonly notifications: NotificationsService,
-    private readonly sensitiveText: EncryptedSensitiveTextProvider = new EncryptedSensitiveTextProvider(),
-    private readonly localPdfDlp: LocalPdfDlpService = new LocalPdfDlpService(),
   ) {}
 
-  async analyzeInvoice(
+  async createCaseFromInvoice(
     documentId: string,
     ownerId: string,
     gameRuleId: string,
-    aiProcessingConsentAccepted = false,
+    smsCount: number | undefined,
+    amountCents: number | undefined,
+    detailsConfirmed = false,
   ) {
-    if (!aiProcessingConsentAccepted) {
+    if (!detailsConfirmed) {
       throw new BadRequestException(
-        "Votre accord explicite est requis avant toute analyse par le fournisseur d'IA.",
+        "Confirmez que le nombre de SMS et le montant saisis figurent sur votre facture.",
       );
     }
+    validateManualSmsDetails(smsCount, amountCents);
     const document = await this.prisma.document.findFirst({
       where: {
         id: documentId,
@@ -92,7 +75,6 @@ export class EligibilityService {
         owner: { is: { accountDeletedAt: null } },
       },
       include: {
-        ocrResult: true,
         caseDocuments: {
           where: { purpose: "SOURCE_INVOICE" },
           select: { caseId: true },
@@ -106,13 +88,13 @@ export class EligibilityService {
 
     if (document.kind !== DocumentKind.ORANGE_INVOICE) {
       throw new BadRequestException(
-        "Seules les factures operateur peuvent etre analysees ici.",
+        "Seules les factures operateur peuvent etre utilisees ici.",
       );
     }
 
     if (!gameRuleId.trim()) {
       throw new BadRequestException(
-        "Selectionnez la chaine et le jeu concours avant l'analyse.",
+        "Selectionnez la chaine et le jeu concours avant de creer le dossier.",
       );
     }
     const selectedRule = await this.prisma.gameRule.findFirst({
@@ -129,62 +111,28 @@ export class EligibilityService {
       );
     }
 
-    await this.prisma.auditLog.create({
-      data: {
-        actorId: ownerId,
-        action: "AI_DOCUMENT_PROCESSING_CONSENT_RECORDED",
-        entityType: "Document",
-        entityId: document.id,
-        metadata: {
-          provider: "mistral",
-          purpose: "ORANGE_INVOICE_OCR",
-          version: "2026-08-03.mistral.v1",
-          acceptedAt: new Date().toISOString(),
-        },
-      },
-    });
-
-    const ocr = document.ocrResult
-      ? {
-          text: this.sensitiveText.decrypt(
-            document.ocrResult.text,
-            ocrTextContext(document.id),
-          ),
-          provider: document.ocrResult.provider,
-          ...(document.ocrResult.confidence
-            ? { confidence: Number(document.ocrResult.confidence) }
-            : {}),
-          raw: document.ocrResult.rawJson,
-        }
-      : await this.runOcr(document, ownerId);
-    const analysis = this.analyzer.execute({
-      text: ocr.text,
-      selectedRuleId: selectedRule.id,
-      approvedRules: [
-        {
-          id: selectedRule.id,
-          organizerName: selectedRule.organizer.name,
-          name: selectedRule.name,
-          reimbursementCents: selectedRule.reimbursementCents,
-          requiredDocuments: selectedRule.requiredDocuments,
-          constraints: selectedRule.constraintsJson,
-          ...(selectedRule.validFrom
-            ? { validFrom: selectedRule.validFrom }
-            : {}),
-          ...(selectedRule.validUntil
-            ? { validUntil: selectedRule.validUntil }
-            : {}),
-        },
+    const manualCharge = {
+      label: `Saisie client : ${smsCount} SMS pour ${(amountCents! / 100).toFixed(2)} EUR`,
+      quantity: smsCount!,
+      amountCents: amountCents!,
+      evidence:
+        "Nombre de SMS et montant confirmes par le client sur sa facture",
+    };
+    const candidate = {
+      ruleId: selectedRule.id,
+      ruleName: selectedRule.name,
+      reimbursementCents: amountCents!,
+      confidence: null,
+      evidence: [
+        `Jeu selectionne par le client: ${selectedRule.name}`,
+        `${smsCount} SMS et ${(amountCents! / 100).toFixed(2)} EUR confirmes par le client`,
       ],
-    });
-    const candidate = analysis.candidates[0];
-    const matchedRule =
-      candidate?.ruleId === selectedRule.id ? selectedRule : undefined;
-    if (candidate && !matchedRule) {
-      throw new BadRequestException(
-        "Le reglement identifie n'est plus disponible.",
-      );
-    }
+      missingRequirements: requiredDocumentLabels(
+        selectedRule.requiredDocuments,
+      ),
+      detectedSmsCharges: [manualCharge],
+    };
+    const matchedRule = selectedRule;
 
     const initiallyKnownCaseIds = [
       ...new Set(document.caseDocuments.map(({ caseId }) => caseId)),
@@ -220,55 +168,9 @@ export class EligibilityService {
       });
       if (!currentSelectedRule) {
         throw new BadRequestException(
-          "Le reglement selectionne a change pendant l'analyse. Relancez-la avec sa version actuelle.",
+          "Le reglement selectionne a change pendant la creation du dossier. Recommencez avec sa version actuelle.",
         );
       }
-      await transaction.ocrResult.upsert({
-        where: { documentId: document.id },
-        create: {
-          documentId: document.id,
-          provider: ocr.provider,
-          text: this.sensitiveText.encrypt(
-            ocr.text,
-            ocrTextContext(document.id),
-          ),
-          ...(ocr.confidence === undefined
-            ? {}
-            : { confidence: ocr.confidence }),
-          rawJson: {
-            isOrangeInvoice: analysis.isOrangeInvoice,
-            isTelecomInvoice: analysis.isTelecomInvoice,
-            operatorName: analysis.operatorName ?? null,
-            participationCount: analysis.participationCount,
-            detectedSmsCharges: analysis.detectedSmsCharges,
-            selectedGameRuleId: selectedRule.id,
-            selectionSource: "CUSTOMER",
-            provider: ocr.provider,
-            ocr: toJsonValue(ocr.raw),
-          },
-        },
-        update: {
-          provider: ocr.provider,
-          text: this.sensitiveText.encrypt(
-            ocr.text,
-            ocrTextContext(document.id),
-          ),
-          ...(ocr.confidence === undefined
-            ? {}
-            : { confidence: ocr.confidence }),
-          rawJson: {
-            isOrangeInvoice: analysis.isOrangeInvoice,
-            isTelecomInvoice: analysis.isTelecomInvoice,
-            operatorName: analysis.operatorName ?? null,
-            participationCount: analysis.participationCount,
-            detectedSmsCharges: analysis.detectedSmsCharges,
-            selectedGameRuleId: selectedRule.id,
-            selectionSource: "CUSTOMER",
-            provider: ocr.provider,
-            ocr: toJsonValue(ocr.raw),
-          },
-        },
-      });
       await transaction.document.update({
         where: { id: document.id },
         data: { status: DocumentStatus.ANALYZED, analyzedAt: new Date() },
@@ -298,13 +200,10 @@ export class EligibilityService {
       if (existingCaseDocument) {
         if (!initiallyKnownCaseIds.includes(existingCaseDocument.caseId)) {
           throw new BadRequestException(
-            "Le document vient d'etre rattache a un dossier. Relancez l'analyse.",
+            "Le document vient d'etre rattache a un dossier. Recommencez la creation.",
           );
         }
         const existingCase = existingCaseDocument.case;
-        if (!candidate || !matchedRule) {
-          return null;
-        }
         const canRefreshCase =
           ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(
             existingCase.status,
@@ -361,8 +260,8 @@ export class EligibilityService {
             actorId: ownerId,
             action:
               existingCase.gameRuleId === candidate.ruleId
-                ? "CASE_DETECTION_REFRESHED"
-                : "CASE_RULE_REASSIGNED_AFTER_ANALYSIS",
+                ? "CASE_CUSTOMER_DETAILS_REFRESHED"
+                : "CASE_RULE_REASSIGNED_BY_CUSTOMER",
             entityType: "AdministrativeCase",
             entityId: existingCase.id,
             metadata: {
@@ -375,27 +274,6 @@ export class EligibilityService {
         return updatedCase;
       }
 
-      if (!candidate) {
-        await transaction.auditLog.create({
-          data: {
-            actorId: ownerId,
-            action: "INVOICE_ANALYZED_WITH_SELECTED_GAME_NO_MATCH",
-            entityType: "Document",
-            entityId: document.id,
-            metadata: {
-              gameRuleId: selectedRule.id,
-              detectedSmsCount: analysis.participationCount,
-            },
-          },
-        });
-        return null;
-      }
-
-      if (!matchedRule) {
-        throw new BadRequestException(
-          "Le reglement identifie n'est plus disponible.",
-        );
-      }
       const ruleSnapshot = createCaseRuleSnapshot(matchedRule);
       const missingRequirements = missingRequiredDocumentLabels(
         ruleSnapshot.requiredDocuments,
@@ -434,17 +312,10 @@ export class EligibilityService {
     return {
       document: {
         id: document.id,
-        isOrangeInvoice: analysis.isOrangeInvoice,
-        isTelecomInvoice: analysis.isTelecomInvoice,
-        operatorName: analysis.operatorName ?? null,
-        participationCount:
-          candidate?.detectedSmsCharges.reduce(
-            (total, charge) => total + charge.quantity,
-            0,
-          ) ?? 0,
-        detectedSmsCharges: candidate?.detectedSmsCharges ?? [],
+        participationCount: smsCount,
+        detectedSmsCharges: candidate.detectedSmsCharges,
       },
-      candidates: analysis.candidates,
+      candidates: [candidate],
       case: result ? this.presentCase(result) : null,
     };
   }
@@ -1648,130 +1519,6 @@ export class EligibilityService {
       createdAt: administrativeCase.createdAt,
     };
   }
-
-  private async runOcr(
-    document: {
-      id: string;
-      storageBucket: string;
-      storageKey: string;
-      checksumSha256: string;
-      sizeBytes: number;
-      kind: DocumentKind;
-      mimeType: string;
-    },
-    ownerId: string,
-  ) {
-    requireDocumentEligibleForAi(document.kind);
-    const bytes = await this.storage.getDecryptedObject({
-      object: {
-        bucket: document.storageBucket,
-        key: document.storageKey,
-        checksumSha256: document.checksumSha256,
-        sizeBytes: document.sizeBytes,
-      },
-      encryptionContext: { ownerId, documentKind: document.kind },
-    });
-
-    await this.requireLocallyClassifiedAiDocument({
-      bytes,
-      declaredKind: document.kind,
-      mimeType: document.mimeType,
-    });
-    await this.reserveMistralCall(ownerId, document.id);
-    return this.mistralOcr.extractText({ bytes, mimeType: document.mimeType });
-  }
-
-  private async requireLocallyClassifiedAiDocument(input: {
-    bytes: Uint8Array;
-    declaredKind: DocumentKind;
-    mimeType: string;
-  }): Promise<void> {
-    try {
-      const classification = await this.localPdfDlp.classify(input);
-      if (classification.accepted) return;
-      throw new BadRequestException(
-        "Le document visible ne peut pas etre confirme localement comme une facture operateur. Aucune donnee n'a ete transmise au fournisseur d'IA.",
-      );
-    } catch (error) {
-      if (error instanceof LocalPdfDlpBusyError) {
-        throw new HttpException(
-          "Le controle local des documents est sature. Reessayez dans quelques instants.",
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      if (error instanceof LocalPdfDlpUnavailableError) {
-        throw new HttpException(
-          "Le controle local de confidentialite est indisponible. Aucune donnee n'a ete transmise.",
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
-      }
-      throw error;
-    }
-  }
-
-  private async reserveMistralCall(
-    ownerId: string,
-    documentId: string,
-  ): Promise<void> {
-    const now = new Date();
-    const startOfDay = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
-    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1_000);
-    const day = startOfDay.toISOString().slice(0, 10);
-    const limits = aiDailyQuotaLimits(process.env);
-    await this.prisma.$transaction(
-      async (transaction) => {
-        await transaction.$executeRaw`
-          SELECT pg_advisory_xact_lock(hashtext(${`mistral-quota:global:${day}`}))
-        `;
-        await transaction.$executeRaw`
-          SELECT pg_advisory_xact_lock(hashtext(${`mistral-quota:account:${day}:${ownerId}`}))
-        `;
-        const providerCount = await transaction.auditLog.count({
-          where: {
-            action: "MISTRAL_CALL_RESERVED",
-            createdAt: { gte: startOfDay, lt: endOfDay },
-          },
-        });
-        if (providerCount >= limits.provider) {
-          throw aiQuotaExceeded(
-            "Le plafond quotidien du service d'analyse est atteint. Reessayez demain.",
-          );
-        }
-        const accountCount = await transaction.auditLog.count({
-          where: {
-            actorId: ownerId,
-            action: "MISTRAL_CALL_RESERVED",
-            createdAt: { gte: startOfDay, lt: endOfDay },
-          },
-        });
-        if (accountCount >= limits.account) {
-          throw aiQuotaExceeded(
-            "Votre quota quotidien d'analyses est atteint. Reessayez demain.",
-          );
-        }
-        await transaction.auditLog.create({
-          data: {
-            actorId: ownerId,
-            action: "MISTRAL_CALL_RESERVED",
-            entityType: "Document",
-            entityId: documentId,
-            metadata: {
-              provider: "mistral",
-              purpose: "INVOICE_OCR",
-              day,
-              accountUsage: accountCount + 1,
-              accountLimit: limits.account,
-              providerUsage: providerCount + 1,
-              providerLimit: limits.provider,
-            },
-          },
-        });
-      },
-      { maxWait: 5_000, timeout: 10_000 },
-    );
-  }
 }
 
 function readPricingSnapshot(value: unknown) {
@@ -1781,7 +1528,8 @@ function readPricingSnapshot(value: unknown) {
     typeof pricing.baseServiceFeeCents !== "number" ||
     typeof pricing.serviceFeeCents !== "number" ||
     typeof pricing.discountCents !== "number"
-  ) return null;
+  )
+    return null;
   return {
     baseServiceFeeCents: pricing.baseServiceFeeCents,
     serviceFeeCents: pricing.serviceFeeCents,
@@ -1790,40 +1538,6 @@ function readPricingSnapshot(value: unknown) {
       typeof pricing.discountLabel === "string" ? pricing.discountLabel : null,
     promoCode: typeof pricing.promoCode === "string" ? pricing.promoCode : null,
   };
-}
-
-function ocrTextContext(documentId: string): string {
-  return `ocr-result:${documentId}`;
-}
-
-export function aiDailyQuotaLimits(
-  environment: NodeJS.ProcessEnv,
-): Readonly<{ account: number; provider: number }> {
-  return {
-    account: readNonNegativeInteger(
-      environment.AI_DAILY_ACCOUNT_CALL_LIMIT,
-      10,
-      1_000,
-    ),
-    provider: readNonNegativeInteger(
-      environment.MISTRAL_DAILY_CALL_LIMIT,
-      1_000,
-      100_000,
-    ),
-  };
-}
-
-function readNonNegativeInteger(
-  value: string | undefined,
-  fallback: number,
-  maximum: number,
-): number {
-  if (!value || !/^\d+$/.test(value)) return fallback;
-  return Math.min(Number.parseInt(value, 10), maximum);
-}
-
-function aiQuotaExceeded(message: string): HttpException {
-  return new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
 }
 
 const deletionProtectedCaseStatuses = new Set([
@@ -1959,6 +1673,41 @@ function readDetectedSmsCount(value: unknown): number {
       (typeof quantity === "number" && Number.isFinite(quantity) ? quantity : 0)
     );
   }, 0);
+}
+
+function validateManualSmsDetails(
+  smsCount: number | undefined,
+  amountCents: number | undefined,
+): void {
+  if (
+    !Number.isInteger(smsCount) ||
+    (smsCount ?? 0) < 1 ||
+    (smsCount ?? 0) > 1_000
+  ) {
+    throw new BadRequestException(
+      "Le nombre de SMS doit etre un entier compris entre 1 et 1000.",
+    );
+  }
+  if (
+    !Number.isInteger(amountCents) ||
+    (amountCents ?? 0) < 1 ||
+    (amountCents ?? 0) > 10_000_000
+  ) {
+    throw new BadRequestException(
+      "Le montant doit etre compris entre 0,01 EUR et 100 000 EUR.",
+    );
+  }
+}
+
+function requiredDocumentLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((document) => {
+    if (!document || typeof document !== "object") return [];
+    const candidate = document as Record<string, unknown>;
+    return candidate.required === true && typeof candidate.label === "string"
+      ? [candidate.label]
+      : [];
+  });
 }
 
 function readPostalExpenseClaimSelection(value: unknown): {

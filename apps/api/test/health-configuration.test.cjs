@@ -68,8 +68,6 @@ const validProductionEnvironment = Object.freeze({
   AI_DAILY_ACCOUNT_CALL_LIMIT: "10",
   MISTRAL_DAILY_CALL_LIMIT: "1000",
   MISTRAL_MAX_CONCURRENT_REQUESTS: "2",
-  AI_LOCAL_DLP_CONCURRENCY: "2",
-  AI_LOCAL_DLP_MAX_PAGES: "6",
   RESEND_API_KEY: "re_production_test_key",
   RESEND_FROM_EMAIL: "Lydoc <notifications@lydoc.test>",
   CONTACT_TO_EMAIL: "support@lydoc.test",

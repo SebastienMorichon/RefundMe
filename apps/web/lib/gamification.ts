@@ -100,9 +100,9 @@ export function buildAchievements(
   return [
     {
       id: "FIRST_ANALYSIS",
-      title: "Première facture analysée",
+      title: "Premier dossier créé",
       description:
-        "Une facture mobile a été analysée pour rechercher des SMS+.",
+        "Une facture mobile a été utilisée pour préparer un dossier SMS+.",
       earned: analyzedDocuments.length > 0,
     },
     {

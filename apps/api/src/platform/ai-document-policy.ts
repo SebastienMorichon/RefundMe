@@ -1,7 +1,6 @@
 import { DocumentKind } from "@prisma/client";
 
 const aiEligibleDocumentKinds = new Set<DocumentKind>([
-  DocumentKind.ORANGE_INVOICE,
   DocumentKind.GAME_RULE_PDF,
 ]);
 

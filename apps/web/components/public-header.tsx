@@ -45,7 +45,7 @@ export function PublicHeader() {
             href="/inscription"
             className="rounded-md bg-[#087a55] px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#066344]"
           >
-            Tester ma facture
+            Préparer mon dossier
           </a>
         </div>
         <button

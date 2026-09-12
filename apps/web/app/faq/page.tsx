@@ -10,7 +10,7 @@ const groups = [
     questions: [
       [
         "À quoi sert Lydoc ?",
-        "Lydoc analyse vos factures, recherche les conditions de remboursement applicables et vous aide à constituer le dossier demandé par l’organisateur.",
+        "Lydoc applique les conditions du règlement sélectionné aux frais SMS+ que vous confirmez et vous aide à constituer le dossier demandé par l’organisateur.",
       ],
       [
         "Quels documents puis-je analyser ?",
@@ -27,11 +27,11 @@ const groups = [
     questions: [
       [
         "Dois-je fournir un RIB ou une pièce d’identité à l’inscription ?",
-        "Non. Ces documents ne sont pas nécessaires pour créer un compte ou analyser une facture. Ils sont demandés plus tard uniquement lorsque le règlement du dossier l’exige.",
+        "Non. Ces documents ne sont pas nécessaires pour créer un compte ou déposer une facture. Ils sont demandés plus tard uniquement lorsque le règlement du dossier l’exige.",
       ],
       [
         "Quels formats sont acceptés ?",
-        "La facture à analyser doit être un PDF lisible et complet de 20 Mo maximum. Les pièces justificatives demandées ensuite pour un dossier peuvent être déposées en PDF, JPG ou PNG.",
+        "La facture utilisée comme justificatif doit être un PDF lisible et complet de 20 Mo maximum. Les pièces demandées ensuite pour un dossier peuvent être déposées en PDF, JPG ou PNG.",
       ],
       [
         "Comment mes documents sont-ils protégés ?",

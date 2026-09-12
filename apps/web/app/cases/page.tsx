@@ -229,7 +229,7 @@ export default function CasesPage() {
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#66736d]">
                   {cases.length === 0
                     ? reimbursementCreationEnabled
-                      ? "Analysez une facture mobile pour rechercher des SMS+ de jeux-concours potentiellement remboursables."
+                      ? "Déposez une facture mobile et déclarez les SMS+ de jeux-concours potentiellement remboursables."
                       : "Vos demandes de remboursement SMS+ apparaîtront ici dès qu’un dossier sera disponible."
                     : "Modifiez le filtre ou la recherche pour retrouver un dossier."}
                 </p>

@@ -17,7 +17,7 @@ export default function TermsOfUsePage() {
             particuliers majeurs résidant en France.
           </p>
           <p>
-            Il aide l’utilisateur à analyser une facture opérateur, à rapprocher
+            Il aide l’utilisateur à déclarer les frais d’une facture opérateur, à rapprocher
             les frais détectés d’un règlement de jeu et à constituer un dossier
             qu’il télécharge, vérifie, imprime et transmet lui-même.
           </p>

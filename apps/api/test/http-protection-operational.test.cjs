@@ -41,12 +41,12 @@ test("document identifiers share bounded rate-limit buckets", () => {
   assert.equal(rateLimitBucketPath("/documents/document-a"), "/documents/:id");
   assert.equal(rateLimitBucketPath("/documents/document-b"), "/documents/:id");
   assert.equal(
-    rateLimitBucketPath("/documents/document-a/analyze"),
-    "/documents/:id/analyze",
+    rateLimitBucketPath("/documents/document-a/case"),
+    "/documents/:id/case",
   );
   assert.equal(
-    rateLimitBucketPath("/documents/document-b/analyze"),
-    "/documents/:id/analyze",
+    rateLimitBucketPath("/documents/document-b/case"),
+    "/documents/:id/case",
   );
 
   const limiter = createRateLimiter(1, 60_000, () => 1_000);
@@ -56,14 +56,14 @@ test("document identifiers share bounded rate-limit buckets", () => {
   };
 
   limiter(
-    createRequest({ path: "/documents/document-a/analyze" }),
+    createRequest({ path: "/documents/document-a/case" }),
     createResponse(),
     next,
   );
-  const analyzeResponse = createResponse();
+  const caseResponse = createResponse();
   limiter(
-    createRequest({ path: "/DOCUMENTS/document-b/ANALYZE/" }),
-    analyzeResponse,
+    createRequest({ path: "/DOCUMENTS/document-b/CASE/" }),
+    caseResponse,
     next,
   );
 
@@ -80,7 +80,7 @@ test("document identifiers share bounded rate-limit buckets", () => {
   );
 
   assert.equal(nextCalls, 2);
-  assert.equal(analyzeResponse.statusCode, 429);
+  assert.equal(caseResponse.statusCode, 429);
   assert.equal(documentResponse.statusCode, 429);
 });
 

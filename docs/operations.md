@@ -20,7 +20,7 @@ Les deux contrôles de dépendances partagent une probe mise en cache dix second
 - les bornes du worker `IDENTITY_EMAIL_OUTBOX_INTERVAL_MS`, `IDENTITY_EMAIL_OUTBOX_CONCURRENCY`, `IDENTITY_EMAIL_OUTBOX_BATCH_SIZE`, `IDENTITY_EMAIL_OUTBOX_LEASE_SECONDS` et `IDENTITY_EMAIL_OUTBOX_MAX_ATTEMPTS` ;
 - `DOCUMENT_ENCRYPTION_SECRET`, `DOCUMENT_ENCRYPTION_KEY_ID` et, pendant une rotation, `DOCUMENT_ENCRYPTION_PREVIOUS_KEYS` ;
 - `BACKUP_ENCRYPTION_SECRET`, distinct de la clé documentaire, `BACKUP_ENCRYPTION_KEY_ID` et, pendant une rotation, `BACKUP_ENCRYPTION_PREVIOUS_KEYS` ;
-- `MISTRAL_API_KEY`, `AI_DAILY_ACCOUNT_CALL_LIMIT`, `MISTRAL_DAILY_CALL_LIMIT`, `AI_LOCAL_DLP_CONCURRENCY` et `AI_LOCAL_DLP_MAX_PAGES` ; le rendu Poppler et l'OCR Tesseract locaux doivent rester disponibles, sinon aucun document client n'est transmis à Mistral ;
+- `MISTRAL_API_KEY`, `AI_DAILY_ACCOUNT_CALL_LIMIT` et `MISTRAL_DAILY_CALL_LIMIT` pour l'import automatisé des règlements de jeux ; aucun document client n'est transmis à Mistral ;
 - `DOCUMENT_STORAGE_GLOBAL_BYTES` borne durablement les documents, leurs révisions et les dossiers PDF générés ; `DOCUMENT_STORAGE_MIN_FREE_BYTES` réserve en plus un plancher d'espace libre ; `STORAGE_WRITE_RESERVATION_TTL_SECONDS` borne à 60–3 600 secondes les réservations d’écriture à réconcilier après interruption. Reliez ces signaux à la supervision du volume ;
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `CONTACT_TO_EMAIL`, `CONTACT_DAILY_LIMIT` et `SECURITY_CONTACT_EMAIL` ;
 - `DOCUMENT_RETENTION_DAYS`, `SENSITIVE_DOCUMENT_RETENTION_DAYS`, `DOCUMENT_DELETION_GRACE_DAYS`, `DOCUMENT_MIGRATION_BACKUP_DAYS`, `DOCUMENT_RETENTION_AUTOMATION_ENABLED=true`, `DOCUMENT_RETENTION_INTERVAL_MINUTES`, `ACCOUNT_ERASURE_PURGE_GRACE_DAYS` et `ACCOUNT_LEGAL_RECORD_RETENTION_DAYS` ;
@@ -78,11 +78,11 @@ L’API n’accepte les requêtes navigateur que depuis `APP_URL`. Gardez `LYDOC
 
 Le plafond général par IP couvre toutes les routes hors `/health/live` et `/health/ready`, puis les chemins sensibles reçoivent un quota supplémentaire. Ces chemins sont normalisés et leurs identifiants variables sont canonisés afin que casse, slash final, encodage ou rotation d’identifiant ne contournent pas leur quota. Ces limiteurs en mémoire complètent la limitation du proxy et les budgets persistants ; ils ne les remplacent pas. Ils restent locaux à une instance. Un déploiement multi-instance doit utiliser un stockage de quotas partagé, par exemple Redis.
 
-## OCR, quotas et confidentialité
+## Import des règlements, quotas et confidentialité
 
-L’analyse de facture transmet temporairement le document déchiffré à Mistral OCR et conserve le texte retourné. Les limites quotidiennes par compte et globales doivent être dimensionnées avant l’ouverture et surveillées pour éviter les abus et les dépassements de coût.
+Les factures opérateur ne sont pas analysées automatiquement : le client saisit le nombre de SMS et le montant total, puis la facture reste stockée comme justificatif chiffré. Mistral est réservé à l’OCR et à l’extraction des règlements importés par l’administration. Les limites quotidiennes doivent être dimensionnées et surveillées pour éviter les abus et les dépassements de coût.
 
-Les RIB et pièces d’identité ne doivent jamais être envoyés au fournisseur IA. Ils sont filigranés localement et stockés chiffrés. Ce flux, les durées de rétention et le fournisseur OCR doivent figurer dans la politique de confidentialité et les accords de sous-traitance.
+Les documents clients, notamment les factures, RIB et pièces d’identité, ne doivent jamais être envoyés au fournisseur IA. Les documents sensibles sont filigranés localement lorsque la fonction est active et tous sont stockés chiffrés. Les durées de rétention et le traitement des règlements doivent figurer dans la politique de confidentialité et les accords de sous-traitance.
 
 ## Rétention documentaire
 
@@ -136,6 +136,6 @@ Pour faire tourner la clé de sauvegarde, changez la clé et son identifiant cou
 - restauration complète testée depuis une copie hors hôte ;
 - cutover `GeneratedPacket.sizeBytes` terminé, compteur invalide à zéro et readiness verte ;
 - au moins deux administrateurs MFA distincts provisionnés, procédure hors bande de rotation/reprise testée et sessions antérieures révoquées ;
-- supervision, alertes de quotas, de rétention et d’échecs OCR opérationnelles ;
+- supervision, alertes de quotas d’import des règlements et de rétention opérationnelles ;
 - tests d’intrusion externes ciblés sur identité, autorisations documentaires, upload, SSRF, injections et webhooks ;
 - mentions légales, confidentialité, CGU et processus RGPD validés par le conseil compétent.

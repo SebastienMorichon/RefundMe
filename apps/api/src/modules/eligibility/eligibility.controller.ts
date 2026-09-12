@@ -19,17 +19,25 @@ import { EligibilityService } from "./eligibility.service";
 export class EligibilityController {
   constructor(private readonly eligibility: EligibilityService) {}
 
-  @Post("documents/:id/analyze")
-  async analyze(
+  @Post("documents/:id/case")
+  async createCaseFromInvoice(
     @Param("id") documentId: string,
-    @Body() body: { gameRuleId?: string; aiProcessingConsentAccepted?: boolean },
+    @Body()
+    body: {
+      gameRuleId?: string;
+      smsCount?: number;
+      amountCents?: number;
+      detailsConfirmed?: boolean;
+    },
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.eligibility.analyzeInvoice(
+    return this.eligibility.createCaseFromInvoice(
       documentId,
       this.requireUserId(request),
       body.gameRuleId ?? "",
-      body.aiProcessingConsentAccepted === true,
+      body.smsCount,
+      body.amountCents,
+      body.detailsConfirmed === true,
     );
   }
 

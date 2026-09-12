@@ -55,9 +55,9 @@ export function DetectionReviewCard({
           <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e8f6ef] text-[#087a55]">
             <MessageSquareText size={19} />
           </span>
-          <h2 className="mt-3 text-base font-extrabold text-[#17211d]">Vérifiez la détection</h2>
+          <h2 className="mt-3 text-base font-extrabold text-[#17211d]">Vérifiez vos informations</h2>
           <p className="mt-1 text-xs leading-5 text-[#66736d]">
-            Corrigez le résultat si la lecture de la facture est inexacte.
+            Corrigez le nombre de SMS ou le montant si nécessaire.
           </p>
         </div>
 

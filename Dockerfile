@@ -77,10 +77,6 @@ RUN apk upgrade --no-cache \
 FROM runtime-base AS api
 RUN apk add --no-cache \
     fontconfig \
-    poppler-utils=25.12.0-r0 \
-    tesseract-ocr=5.5.1-r0 \
-    tesseract-ocr-data-eng=5.5.1-r0 \
-    tesseract-ocr-data-fra=5.5.1-r0 \
     ttf-dejavu
 WORKDIR /app
 ENV NODE_ENV=production

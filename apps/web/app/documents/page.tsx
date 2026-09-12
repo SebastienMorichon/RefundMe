@@ -9,12 +9,13 @@ import {
   Clock3,
   FileCheck2,
   FileText,
+  Euro,
   LoaderCircle,
   LockKeyhole,
+  MessageSquareText,
   Plus,
   ScanLine,
   ShieldCheck,
-  Sparkles,
   Trash2,
   UploadCloud,
 } from "lucide-react";
@@ -56,12 +57,10 @@ const allowedTypes = ["application/pdf"];
 type View = "list" | "upload" | "result";
 type AnalysisResult = {
   eligible: boolean;
-  ruleMatched: boolean;
   caseId: string | null;
   amountCents: number;
   smsCount: number;
   ruleName: string;
-  shortCodes: string[];
 };
 
 export default function DocumentsPage() {
@@ -73,7 +72,9 @@ export default function DocumentsPage() {
   const [selectedChannelId, setSelectedChannelId] = useState("");
   const [selectedGameRuleId, setSelectedGameRuleId] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [aiConsentAccepted, setAiConsentAccepted] = useState(false);
+  const [smsCountValue, setSmsCountValue] = useState("");
+  const [amountValue, setAmountValue] = useState("");
+  const [detailsConfirmed, setDetailsConfirmed] = useState(false);
   const [existingDocument, setExistingDocument] =
     useState<UploadedDocument | null>(null);
   const [view, setView] = useState<View>("list");
@@ -148,7 +149,9 @@ export default function DocumentsPage() {
     setExistingDocument(null);
     setSelectedChannelId("");
     setSelectedGameRuleId("");
-    setAiConsentAccepted(false);
+    setSmsCountValue("");
+    setAmountValue("");
+    setDetailsConfirmed(false);
     setMessage("");
     window.history.replaceState(null, "", "/documents?new=1");
   }
@@ -163,7 +166,9 @@ export default function DocumentsPage() {
     setExistingDocument(null);
     setSelectedChannelId("");
     setSelectedGameRuleId("");
-    setAiConsentAccepted(false);
+    setSmsCountValue("");
+    setAmountValue("");
+    setDetailsConfirmed(false);
     setAnalysis(null);
     setMessage("");
     window.history.replaceState(null, "", "/documents");
@@ -174,7 +179,9 @@ export default function DocumentsPage() {
     setSelectedFile(null);
     setSelectedChannelId("");
     setSelectedGameRuleId("");
-    setAiConsentAccepted(false);
+    setSmsCountValue("");
+    setAmountValue("");
+    setDetailsConfirmed(false);
     setAnalysis(null);
     setMessage("");
     setView("upload");
@@ -218,17 +225,27 @@ export default function DocumentsPage() {
       setTone("error");
       return;
     }
-    if (!aiConsentAccepted) {
-      setMessage(
-        "Confirmez votre accord pour l’analyse de cette facture par Mistral.",
-      );
+    const smsCount = Number(smsCountValue);
+    const amountCents = parseEuroInput(amountValue);
+    if (!Number.isInteger(smsCount) || smsCount < 1 || smsCount > 1_000) {
+      setMessage("Saisissez un nombre de SMS compris entre 1 et 1000.");
+      setTone("error");
+      return;
+    }
+    if (amountCents === null || amountCents < 1) {
+      setMessage("Saisissez le montant total des SMS figurant sur la facture.");
+      setTone("error");
+      return;
+    }
+    if (!detailsConfirmed) {
+      setMessage("Confirmez que ces informations figurent sur votre facture.");
       setTone("error");
       return;
     }
 
     setIsBusy(true);
     setMessage(
-      "Votre facture est chiffrée, puis analysée par Lydoc. Cela peut prendre quelques instants.",
+      "Votre facture est chiffrée et votre dossier est en cours de création.",
     );
     setTone("info");
     try {
@@ -255,13 +272,20 @@ export default function DocumentsPage() {
           ...current.filter((item) => item.id !== document.id),
         ]);
       }
-      await analyzeDocument(documentId, selectedGameRuleId);
+      await createCaseFromInvoice(
+        documentId,
+        selectedGameRuleId,
+        smsCount,
+        amountCents,
+      );
       setSelectedFile(null);
       setExistingDocument(null);
       if (inputRef.current) inputRef.current.value = "";
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "L’analyse n’a pas abouti.",
+        error instanceof Error
+          ? error.message
+          : "La création du dossier n’a pas abouti.",
       );
       setTone("error");
     } finally {
@@ -269,26 +293,32 @@ export default function DocumentsPage() {
     }
   }
 
-  async function analyzeDocument(documentId: string, gameRuleId: string) {
+  async function createCaseFromInvoice(
+    documentId: string,
+    gameRuleId: string,
+    smsCount: number,
+    amountCents: number,
+  ) {
     setIsBusy(true);
-    setMessage("Lecture de la facture et recherche des SMS surtaxés...");
+    setMessage("Création de votre dossier...");
     setTone("info");
     try {
-      const response = await fetch(
-        `${apiUrl}/documents/${documentId}/analyze`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            gameRuleId,
-            aiProcessingConsentAccepted: true,
-          }),
-        },
-      );
+      const response = await fetch(`${apiUrl}/documents/${documentId}/case`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          gameRuleId,
+          smsCount,
+          amountCents,
+          detailsConfirmed: true,
+        }),
+      });
       const payload = await readJson(response);
       if (!response.ok)
-        throw new Error(errorMessage(payload, "L’analyse n’a pas abouti."));
+        throw new Error(
+          errorMessage(payload, "La création du dossier n’a pas abouti."),
+        );
 
       const result = readAnalysis(payload);
       setAnalysis(result);
@@ -298,7 +328,9 @@ export default function DocumentsPage() {
       await refreshDocuments();
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "L’analyse n’a pas abouti.",
+        error instanceof Error
+          ? error.message
+          : "La création du dossier n’a pas abouti.",
       );
       setTone("error");
     } finally {
@@ -428,7 +460,9 @@ export default function DocumentsPage() {
             gameCatalog={gameCatalog}
             selectedChannelId={selectedChannelId}
             selectedGameRuleId={selectedGameRuleId}
-            aiConsentAccepted={aiConsentAccepted}
+            smsCountValue={smsCountValue}
+            amountValue={amountValue}
+            detailsConfirmed={detailsConfirmed}
             inputRef={inputRef}
             isBusy={isBusy}
             message={message}
@@ -442,7 +476,9 @@ export default function DocumentsPage() {
               setSelectedGameRuleId("");
             }}
             onGameChange={setSelectedGameRuleId}
-            onAiConsentChange={setAiConsentAccepted}
+            onSmsCountChange={setSmsCountValue}
+            onAmountChange={setAmountValue}
+            onDetailsConfirmedChange={setDetailsConfirmed}
             onRemove={() => {
               setSelectedFile(null);
               setExistingDocument(null);
@@ -505,7 +541,7 @@ function DocumentList({
           disabled={isBusy}
           className="primary-button min-h-11 w-full px-5 text-sm shadow-[0_10px_24px_rgba(8,122,85,0.18)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
-          Analyser une facture <UploadCloud size={17} />
+          Préparer un remboursement <UploadCloud size={17} />
         </button>
         <NotificationLink />
       </div>
@@ -533,8 +569,8 @@ function DocumentList({
               </span>
             </h1>
             <p className="mt-5 max-w-[520px] text-sm leading-6 text-[#708078]">
-              Retrouvez vos fichiers chiffrés, analysez vos factures et suivez
-              leur traitement depuis un seul endroit.
+              Retrouvez vos fichiers chiffrés et utilisez-les pour préparer vos
+              dossiers de remboursement.
             </p>
           </div>
 
@@ -561,7 +597,7 @@ function DocumentList({
             </div>
             <div className="absolute bottom-8 right-[13%] rounded-full border border-[#cde4d8] bg-[#eff9f4] px-3 py-2 text-[10px] font-extrabold text-[#087a55] shadow-[0_8px_20px_rgba(45,71,59,0.07)]">
               <span className="flex items-center gap-1.5">
-                <CheckCircle2 size={13} /> {analyzedCount} analysé
+                <CheckCircle2 size={13} /> {analyzedCount} utilisé
                 {analyzedCount !== 1 ? "s" : ""}
               </span>
             </div>
@@ -589,16 +625,16 @@ function DocumentList({
           tone="mint"
         />
         <DocumentMetric
-          label="Documents analysés"
+          label="Factures utilisées"
           value={String(analyzedCount)}
-          detail="Analyse terminée"
+          detail="Dossier créé"
           icon={FileCheck2}
           tone="green"
         />
         <DocumentMetric
           label="En cours de traitement"
           value={String(processingCount)}
-          detail="OCR ou analyse"
+          detail="En attente d’utilisation"
           icon={ScanLine}
           tone="amber"
         />
@@ -625,7 +661,7 @@ function DocumentList({
                 Mes documents récents
               </h2>
               <p className="mt-1 text-[11px] text-[#7b8781]">
-                Analysez ou relancez une facture quand vous le souhaitez.
+                Utilisez une facture pour préparer un nouveau remboursement.
               </p>
             </div>
             <button
@@ -652,7 +688,7 @@ function DocumentList({
                   Aucun document pour le moment
                 </h3>
                 <p className="mt-2 text-sm text-[#66736d]">
-                  Votre première facture apparaîtra ici après son analyse.
+                  Votre première facture apparaîtra ici après son dépôt.
                 </p>
                 <button
                   type="button"
@@ -719,11 +755,11 @@ function DocumentList({
                           {isBusy ? (
                             <LoaderCircle className="animate-spin" size={14} />
                           ) : (
-                            <Sparkles size={14} />
+                            <FileCheck2 size={14} />
                           )}
                           {document.status === "ANALYZED"
-                            ? "Relancer l’analyse"
-                            : "Analyser"}
+                            ? "Nouveau dossier"
+                            : "Utiliser"}
                         </button>
                       ) : (
                         <span className="flex-1 text-xs font-bold text-[#087a55] lg:flex-none">
@@ -766,8 +802,16 @@ function DocumentList({
           <ol className="mt-4 grid gap-4">
             {[
               ["1", "Vous déposez un PDF", "Format PDF, jusqu’à 20 Mo."],
-              ["2", "Lydoc lit la facture", "Les frais SMS+ sont repérés."],
-              ["3", "Vous validez le résultat", "Rien n’est envoyé sans vous."],
+              [
+                "2",
+                "Vous recopiez les frais",
+                "Nombre de SMS et montant total.",
+              ],
+              [
+                "3",
+                "Lydoc prépare le dossier",
+                "La facture reste un justificatif.",
+              ],
             ].map(([number, title, description]) => (
               <li key={number} className="flex gap-3">
                 <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0b8a61] text-[10px] font-black text-white">
@@ -854,12 +898,12 @@ function DocumentsReassuranceStrip() {
     },
     {
       title: "Vérifiable",
-      description: "Vous gardez la main sur les données détectées.",
+      description: "Vous saisissez et confirmez les informations utiles.",
       icon: FileCheck2,
     },
     {
       title: "Rapide",
-      description: "L’analyse vous guide vers la prochaine étape.",
+      description: "Le dossier est créé sans lecture automatique.",
       icon: Clock3,
     },
   ];
@@ -911,7 +955,9 @@ function UploadView({
   gameCatalog,
   selectedChannelId,
   selectedGameRuleId,
-  aiConsentAccepted,
+  smsCountValue,
+  amountValue,
+  detailsConfirmed,
   inputRef,
   isBusy,
   message,
@@ -922,7 +968,9 @@ function UploadView({
   onChoose,
   onChannelChange,
   onGameChange,
-  onAiConsentChange,
+  onSmsCountChange,
+  onAmountChange,
+  onDetailsConfirmedChange,
   onRemove,
   onAnalyze,
 }: {
@@ -931,7 +979,9 @@ function UploadView({
   gameCatalog: GameChannel[];
   selectedChannelId: string;
   selectedGameRuleId: string;
-  aiConsentAccepted: boolean;
+  smsCountValue: string;
+  amountValue: string;
+  detailsConfirmed: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   isBusy: boolean;
   message: string;
@@ -942,7 +992,9 @@ function UploadView({
   onChoose: () => void;
   onChannelChange: (channelId: string) => void;
   onGameChange: (gameRuleId: string) => void;
-  onAiConsentChange: (accepted: boolean) => void;
+  onSmsCountChange: (value: string) => void;
+  onAmountChange: (value: string) => void;
+  onDetailsConfirmedChange: (accepted: boolean) => void;
   onRemove: () => void;
   onAnalyze: () => Promise<void>;
 }) {
@@ -956,8 +1008,17 @@ function UploadView({
     selectedFile?.name ?? existingDocument?.originalName ?? "";
   const invoiceSize = selectedFile?.size ?? existingDocument?.sizeBytes ?? 0;
   const hasInvoice = Boolean(selectedFile || existingDocument);
+  const parsedSmsCount = Number(smsCountValue);
+  const parsedAmountCents = parseEuroInput(amountValue);
+  const hasValidDetails =
+    Number.isInteger(parsedSmsCount) &&
+    parsedSmsCount >= 1 &&
+    parsedSmsCount <= 1_000 &&
+    parsedAmountCents !== null &&
+    parsedAmountCents >= 1 &&
+    detailsConfirmed;
   const canAnalyze =
-    hasInvoice && Boolean(selectedGameRuleId) && aiConsentAccepted && !isBusy;
+    hasInvoice && Boolean(selectedGameRuleId) && hasValidDetails && !isBusy;
   const preparationSteps = [
     {
       label: "Jeu sélectionné",
@@ -970,9 +1031,11 @@ function UploadView({
       complete: hasInvoice,
     },
     {
-      label: "Accord Mistral",
-      detail: aiConsentAccepted ? "Consentement confirmé" : "À confirmer",
-      complete: aiConsentAccepted,
+      label: "Informations confirmées",
+      detail: hasValidDetails
+        ? `${smsCountValue} SMS · ${amountValue} EUR`
+        : "À compléter",
+      complete: hasValidDetails,
     },
   ];
   const completedPreparation = preparationSteps.filter(
@@ -1009,9 +1072,9 @@ function UploadView({
             {isBusy ? (
               <LoaderCircle className="animate-spin" size={16} />
             ) : (
-              <Sparkles size={16} />
+              <FileCheck2 size={16} />
             )}
-            Lancer l’analyse
+            Créer mon dossier
           </button>
           <NotificationLink />
         </div>
@@ -1027,21 +1090,21 @@ function UploadView({
       >
         <div className="relative z-10 max-w-[690px]">
           <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#087a55]">
-            Nouvelle analyse
+            Nouveau dossier
           </p>
           <h1
             id="upload-title"
             className="mt-3 text-[30px] font-black leading-[1.08] tracking-[-0.025em] text-[#142a22] sm:text-[36px]"
           >
-            Analyser une facture
+            Préparer un remboursement
           </h1>
           <p className="mt-4 max-w-[590px] text-sm leading-6 text-[#708078]">
-            Indiquez le jeu appelé, ajoutez votre PDF puis confirmez l’analyse
-            sécurisée. Lydoc s’occupe du reste.
+            Indiquez le jeu, ajoutez votre facture et recopiez le nombre de SMS
+            ainsi que leur montant total. Lydoc prépare ensuite votre dossier.
           </p>
           <ol
             className="mt-5 grid max-w-[570px] grid-cols-3 gap-2"
-            aria-label="Préparation de l’analyse"
+            aria-label="Préparation du dossier"
           >
             {preparationSteps.map((step, index) => (
               <li
@@ -1117,8 +1180,7 @@ function UploadView({
                   Quel jeu avez-vous appelé ?
                 </h2>
                 <p className="mt-1 text-xs leading-5 text-[#66736d]">
-                  Votre choix permet d’appliquer le bon règlement au numéro
-                  court détecté.
+                  Votre choix permet d’appliquer directement le bon règlement.
                 </p>
               </div>
             </div>
@@ -1262,7 +1324,7 @@ function UploadView({
                     {invoiceName}
                   </p>
                   <p className="mt-1 text-[10px] font-semibold text-[#7b8781]">
-                    PDF · {formatBytes(invoiceSize)} · prêt pour l’analyse
+                    PDF · {formatBytes(invoiceSize)} · justificatif prêt
                   </p>
                 </div>
                 <button
@@ -1279,28 +1341,80 @@ function UploadView({
             ) : null}
           </section>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[#e1e8e4] bg-white p-5 text-xs leading-5 text-[#59665f] shadow-[0_12px_34px_rgba(27,63,47,0.05)] sm:p-6">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[#ffede8] text-sm font-extrabold text-[#df654d]">
-              3
-            </span>
-            <input
-              type="checkbox"
-              checked={aiConsentAccepted}
-              onChange={(event) => onAiConsentChange(event.target.checked)}
-              disabled={isBusy}
-              className="mt-2 h-4 w-4 shrink-0 accent-[#087a55]"
-            />
-            <span>
-              <span className="block text-sm font-extrabold text-[#24332c]">
-                Autoriser l’analyse assistée
+          <section className="rounded-[12px] border border-[#e1e8e4] bg-white p-5 text-xs leading-5 text-[#59665f] shadow-[0_12px_34px_rgba(27,63,47,0.05)] sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-[#ffede8] text-sm font-extrabold text-[#df654d]">
+                3
               </span>
-              <span className="mt-1.5 block leading-5 text-[#66736d]">
-                J’accepte que cette facture opérateur soit transmise à Mistral
-                afin d’en extraire les informations utiles. Je confirme qu’il ne
-                s’agit ni d’une pièce d’identité ni d’un RIB.
+              <div>
+                <h2 className="text-sm font-extrabold text-[#24332c]">
+                  Recopiez les frais indiqués sur la facture
+                </h2>
+                <p className="mt-1.5 leading-5 text-[#66736d]">
+                  Relevez uniquement les SMS correspondant au jeu sélectionné.
+                  Votre facture n’est pas lue automatiquement.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-xs font-extrabold text-[#34433d]">
+                Nombre de SMS
+                <span className="relative">
+                  <MessageSquareText
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#87938d]"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    step={1}
+                    inputMode="numeric"
+                    value={smsCountValue}
+                    onChange={(event) => onSmsCountChange(event.target.value)}
+                    disabled={isBusy}
+                    className="field field-with-leading-icon"
+                  />
+                </span>
+              </label>
+              <label className="grid gap-2 text-xs font-extrabold text-[#34433d]">
+                Montant total des SMS
+                <span className="relative">
+                  <Euro
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#87938d]"
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={amountValue}
+                    onChange={(event) => onAmountChange(event.target.value)}
+                    disabled={isBusy}
+                    className="field field-with-leading-icon-and-suffix"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-extrabold text-[#87938d]">
+                    EUR
+                  </span>
+                </span>
+              </label>
+            </div>
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[9px] bg-[#f1f8f4] p-3.5">
+              <input
+                type="checkbox"
+                checked={detailsConfirmed}
+                onChange={(event) =>
+                  onDetailsConfirmedChange(event.target.checked)
+                }
+                disabled={isBusy}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#087a55]"
+              />
+              <span>
+                Je confirme que ce nombre de SMS et ce montant figurent sur ma
+                facture et concernent le jeu sélectionné.
               </span>
-            </span>
-          </label>
+            </label>
+          </section>
         </div>
 
         <aside className="rounded-[12px] border border-[#e1e8e4] bg-white p-5 shadow-[0_12px_34px_rgba(27,63,47,0.06)] sm:p-6 lg:sticky lg:top-5">
@@ -1310,7 +1424,7 @@ function UploadView({
                 Votre préparation
               </p>
               <h2 className="mt-1.5 text-base font-extrabold text-[#17211d]">
-                Prêt pour l’analyse ?
+                Prêt à créer le dossier ?
               </h2>
             </div>
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#e8f6ef] text-sm font-black text-[#087a55]">
@@ -1354,8 +1468,8 @@ function UploadView({
           <div className="flex gap-3 rounded-[9px] bg-[#f1f8f4] p-3.5">
             <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#087a55]" />
             <p className="text-[11px] leading-5 text-[#66736d]">
-              Votre PDF est chiffré avant la lecture et reste associé uniquement
-              à votre compte.
+              Votre PDF est stocké chiffré comme justificatif. Il n’est transmis
+              à aucun fournisseur d’IA.
             </p>
           </div>
           <button
@@ -1367,13 +1481,13 @@ function UploadView({
             {isBusy ? (
               <LoaderCircle className="animate-spin" size={17} />
             ) : (
-              <Sparkles size={17} />
+              <FileCheck2 size={17} />
             )}
-            Analyser ma facture
+            Créer mon dossier
           </button>
           {!canAnalyze && !isBusy ? (
             <p className="mt-3 text-center text-[10px] leading-4 text-[#87928c]">
-              Complétez les trois étapes pour lancer l’analyse.
+              Complétez les trois étapes pour créer le dossier.
             </p>
           ) : null}
         </aside>
@@ -1427,8 +1541,8 @@ function ResultView({
               className="primary-button min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:text-sm"
             >
               <Plus size={16} />
-              <span className="hidden sm:inline">Nouvelle analyse</span>
-              <span className="sm:hidden">Analyser</span>
+              <span className="hidden sm:inline">Nouveau dossier</span>
+              <span className="sm:hidden">Créer</span>
             </button>
             <NotificationLink />
           </div>
@@ -1445,19 +1559,18 @@ function ResultView({
           <div className="grid min-h-[240px] lg:grid-cols-[1.15fr_0.85fr]">
             <div className="relative z-10 flex flex-col justify-center px-6 py-8 sm:px-9 lg:px-10">
               <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#d8e1dc] bg-white px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#65736c]">
-                <CheckCircle2 size={13} className="text-[#087a55]" /> Analyse
-                terminée
+                <CheckCircle2 size={13} className="text-[#087a55]" /> Saisie
+                enregistrée
               </span>
               <h1
                 id="empty-result-title"
                 className="mt-4 max-w-[650px] text-[29px] font-black leading-[1.1] tracking-[-0.025em] text-[#142a22] sm:text-[35px]"
               >
-                Aucun SMS remboursable identifié
+                Le dossier n’a pas pu être créé
               </h1>
               <p className="mt-4 max-w-[570px] text-sm leading-6 text-[#708078]">
-                Nous n’avons trouvé aucun frais correspondant au jeu
-                sélectionné. Votre facture reste disponible et protégée dans vos
-                documents.
+                Les informations reçues n’ont pas permis de créer le dossier.
+                Votre facture reste disponible et protégée dans vos documents.
               </p>
             </div>
             <div className="relative hidden min-h-[240px] sm:block">
@@ -1493,19 +1606,20 @@ function ResultView({
         <section className="mt-4 grid overflow-hidden rounded-[12px] border border-[#e1e8e4] bg-white shadow-[0_12px_34px_rgba(27,63,47,0.05)] md:grid-cols-3">
           {[
             {
-              title: "Lecture terminée",
-              description: "La facture a bien été parcourue par Lydoc.",
+              title: "Facture conservée",
+              description: "Le justificatif reste chiffré dans votre espace.",
               icon: ScanLine,
             },
             {
-              title: "Aucun montant retenu",
-              description: "Aucun SMS ne correspond au règlement choisi.",
+              title: "Aucun dossier créé",
+              description:
+                "Vous pouvez vérifier les informations puis recommencer.",
               icon: FileCheck2,
             },
             {
               title: "Document disponible",
               description:
-                "Vous pouvez le relancer ou le supprimer à tout moment.",
+                "Vous pouvez le réutiliser ou le supprimer à tout moment.",
               icon: LockKeyhole,
             },
           ].map(({ title, description, icon: Icon }, index) => (
@@ -1549,7 +1663,7 @@ function ResultView({
             disabled={isBusy}
             className="primary-button disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Plus size={16} /> Analyser une autre facture
+            <Plus size={16} /> Préparer un autre dossier
           </button>
         </div>
 
@@ -1583,8 +1697,8 @@ function ResultView({
             className="secondary-button min-h-11 px-4 text-xs disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:text-sm"
           >
             <Plus size={16} />
-            <span className="hidden sm:inline">Nouvelle analyse</span>
-            <span className="sm:hidden">Analyser</span>
+            <span className="hidden sm:inline">Nouveau dossier</span>
+            <span className="sm:hidden">Créer</span>
           </button>
           <NotificationLink />
         </div>
@@ -1601,32 +1715,19 @@ function ResultView({
         <div className="grid min-h-[240px] lg:grid-cols-[1.18fr_0.82fr]">
           <div className="relative z-10 flex flex-col justify-center px-6 py-8 sm:px-9 lg:px-10">
             <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#bfe1d1] bg-[#eff9f4] px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#087a55]">
-              <CheckCircle2 size={13} /> Analyse terminée
+              <CheckCircle2 size={13} /> Dossier créé
             </span>
             <h1
               id="analysis-result-title"
               className="mt-4 max-w-[700px] text-[29px] font-black leading-[1.1] tracking-[-0.025em] text-[#142a22] sm:text-[35px] lg:text-[38px]"
             >
-              {result.ruleMatched
-                ? `${formatCents(result.amountCents)} remboursables`
-                : `${formatCents(result.amountCents)} de frais SMS+ détectés`}
+              {formatCents(result.amountCents)} de frais déclarés
             </h1>
             <p className="mt-4 max-w-[630px] text-sm leading-6 text-[#708078]">
-              {result.ruleMatched ? (
-                <>
-                  Lydoc a identifié {result.smsCount} SMS surtaxé
-                  {result.smsCount > 1 ? "s" : ""} lié
-                  {result.smsCount > 1 ? "s" : ""} à {result.ruleName}. Vérifiez
-                  les données avant de préparer votre dossier.
-                </>
-              ) : (
-                <>
-                  {result.smsCount} achat{result.smsCount > 1 ? "s" : ""} SMS+
-                  au code {result.shortCodes.join(", ") || "court"} identifié
-                  {result.smsCount > 1 ? "s" : ""}. Le règlement exact reste à
-                  confirmer.
-                </>
-              )}
+              Vous avez déclaré {result.smsCount} SMS surtaxé
+              {result.smsCount > 1 ? "s" : ""} lié
+              {result.smsCount > 1 ? "s" : ""} à {result.ruleName}. Vérifiez une
+              dernière fois les données avant de continuer.
             </p>
           </div>
           <div className="relative hidden min-h-[240px] sm:block">
@@ -1640,7 +1741,7 @@ function ResultView({
             />
             <div className="absolute right-[7%] top-9 min-w-[150px] rounded-[11px] border border-white bg-white/95 p-4 shadow-[0_12px_30px_rgba(45,71,59,0.11)]">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[#77847d]">
-                Montant détecté
+                Montant déclaré
               </span>
               <strong className="mt-1 block text-2xl font-black text-[#087a55]">
                 {formatCents(result.amountCents)}
@@ -1669,8 +1770,8 @@ function ResultView({
               Votre dossier commence ici
             </h2>
             <p className="mt-1 text-[11px] leading-5 text-[#77847d]">
-              La détection est terminée. Après votre confirmation, Lydoc vous
-              guide jusqu’au remboursement.
+              Vos informations sont enregistrées. Après votre confirmation,
+              Lydoc vous guide jusqu’au remboursement.
             </p>
           </div>
           <span className="hidden rounded-full bg-[#e8f6ef] px-3 py-1.5 text-[10px] font-extrabold text-[#087a55] sm:inline-flex">
@@ -1684,9 +1785,7 @@ function ResultView({
 
       <section className="mt-4 grid overflow-hidden rounded-[12px] border border-[#e1e8e4] bg-white shadow-[0_12px_34px_rgba(27,63,47,0.05)] md:grid-cols-2">
         <div className="relative min-h-[150px] p-5 sm:p-6">
-          <p className="text-xs font-semibold text-[#66736d]">
-            {result.ruleMatched ? "Remboursement détecté" : "Frais détectés"}
-          </p>
+          <p className="text-xs font-semibold text-[#66736d]">Frais déclarés</p>
           <p className="mt-3 text-[31px] font-black tracking-[-0.025em] text-[#17211d]">
             {formatCents(result.amountCents)}
           </p>
@@ -1699,27 +1798,13 @@ function ResultView({
         </div>
         <div className="relative min-h-[150px] border-t border-[#e5ebe8] p-5 sm:p-6 md:border-l md:border-t-0">
           <p className="text-xs font-semibold text-[#66736d]">
-            {result.ruleMatched
-              ? "Règlement correspondant"
-              : "Identification du règlement"}
+            Règlement sélectionné
           </p>
           <p className="mt-3 max-w-[78%] text-base font-extrabold text-[#17211d]">
             {result.ruleName}
           </p>
-          <p
-            className={`mt-2 flex items-center gap-1.5 text-xs font-extrabold ${
-              result.ruleMatched ? "text-[#087a55]" : "text-[#9b6319]"
-            }`}
-          >
-            {result.ruleMatched ? (
-              <>
-                <CheckCircle2 size={15} /> Éligible
-              </>
-            ) : (
-              <>
-                <Clock3 size={15} /> Vérification requise
-              </>
-            )}
+          <p className="mt-2 flex items-center gap-1.5 text-xs font-extrabold text-[#087a55]">
+            <CheckCircle2 size={15} /> Sélection confirmée
           </p>
           <span className="absolute bottom-5 right-5 grid h-11 w-11 place-items-center rounded-[10px] bg-[#fff3d6] text-[#d88d05]">
             <ScanLine size={21} />
@@ -1734,11 +1819,11 @@ function ResultView({
           </span>
           <div>
             <h2 className="text-lg font-extrabold text-[#17211d]">
-              Confirmez les informations lues
+              Confirmez vos informations
             </h2>
             <p className="mt-1 text-xs leading-5 text-[#66736d]">
               Corrigez si nécessaire le nombre de SMS ou le montant avant de
-              préparer votre dossier.
+              continuer.
             </p>
           </div>
         </div>
@@ -1784,7 +1869,6 @@ function readAnalysis(payload: Record<string, unknown>): AnalysisResult {
       : null;
   return {
     eligible: Boolean(rawCase),
-    ruleMatched: Boolean(candidate),
     caseId: rawCase && typeof rawCase.id === "string" ? rawCase.id : null,
     amountCents:
       rawCase && typeof rawCase.estimatedRecoverableCents === "number"
@@ -1799,18 +1883,13 @@ function readAnalysis(payload: Record<string, unknown>): AnalysisResult {
     ruleName:
       candidate && typeof candidate.ruleName === "string"
         ? candidate.ruleName
-        : "Frais SMS+ détectés",
-    shortCodes:
-      rawDocument && Array.isArray(rawDocument.detectedSmsCharges)
-        ? [
-            ...new Set(
-              rawDocument.detectedSmsCharges.flatMap((charge) => {
-                if (!charge || typeof charge !== "object") return [];
-                const code = (charge as Record<string, unknown>).code;
-                return typeof code === "string" ? [code] : [];
-              }),
-            ),
-          ]
-        : [],
+        : "Frais SMS+ déclarés",
   };
+}
+
+function parseEuroInput(value: string): number | null {
+  const normalized = value.trim().replace(/\s/g, "").replace(",", ".");
+  if (!/^\d+(?:\.\d{0,2})?$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
 }

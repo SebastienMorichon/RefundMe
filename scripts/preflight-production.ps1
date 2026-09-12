@@ -373,8 +373,6 @@ Require-IntegerRange $Configuration "API_GENERAL_RATE_LIMIT_PER_MINUTE" 10 10000
 Require-IntegerRange $Configuration "AI_DAILY_ACCOUNT_CALL_LIMIT" 0 1000 $Invalid
 Require-IntegerRange $Configuration "MISTRAL_DAILY_CALL_LIMIT" 0 100000 $Invalid
 Require-IntegerRange $Configuration "MISTRAL_MAX_CONCURRENT_REQUESTS" 1 20 $Invalid
-Require-IntegerRange $Configuration "AI_LOCAL_DLP_CONCURRENCY" 1 8 $Invalid
-Require-IntegerRange $Configuration "AI_LOCAL_DLP_MAX_PAGES" 1 20 $Invalid
 Require-IntegerRange $Configuration "DOCUMENT_PENDING_UPLOAD_GLOBAL_BYTES" 20971520 2000000000 $Invalid
 Require-IntegerRange $Configuration "DOCUMENT_UPLOAD_CONCURRENCY_GLOBAL" 1 32 $Invalid
 Require-IntegerRange $Configuration "DOCUMENT_UPLOAD_CONCURRENCY_ACCOUNT" 1 8 $Invalid

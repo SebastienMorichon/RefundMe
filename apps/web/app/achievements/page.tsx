@@ -108,7 +108,7 @@ export default function AchievementsPage() {
         <PageHeading
           eyebrow="Remboursement des SMS surtaxés"
           title="Progression de vos remboursements SMS+"
-          description="Visualisez les étapes déjà accomplies, de l’analyse de votre facture mobile jusqu’aux remboursements que vous avez confirmés."
+          description="Visualisez les étapes déjà accomplies, du dépôt de votre facture mobile jusqu’aux remboursements que vous avez confirmés."
         />
 
         {error ? (

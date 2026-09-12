@@ -64,24 +64,25 @@ export default function PrivacyPage() {
     },
     {
       id: "ia",
-      title: "4. Analyse documentaire et intelligence artificielle",
+      title: "4. Documents et intelligence artificielle",
       content: (
         <>
           <p>
-            Les factures opérateur peuvent être transmises à l’API Mistral afin
-            d’en extraire le texte utile à la détection des frais. Les
-            règlements de jeux importés par un administrateur peuvent également
-            être analysés par Mistral.
+            Les factures opérateur déposées par les utilisateurs ne sont pas
+            transmises à Mistral ni à un autre fournisseur d’intelligence
+            artificielle. L’utilisateur saisit lui-même le nombre de SMS et le
+            montant figurant sur sa facture.
           </p>
           <p>
-            Les RIB et pièces d’identité ne sont jamais transmis à Mistral ni à
-            un autre fournisseur d’intelligence artificielle. Lydoc n’utilise
-            aucun document client pour entraîner un modèle.
+            Les règlements de jeux importés par un administrateur peuvent être
+            analysés par Mistral afin d’en préparer une fiche, qui est ensuite
+            vérifiée avant publication. Les RIB, pièces d’identité et autres
+            documents clients ne sont jamais transmis à ce fournisseur.
           </p>
           <p>
-            Le résultat est une aide que l’utilisateur peut corriger. Aucune
-            décision produisant un effet juridique n’est prise exclusivement par
-            un traitement automatisé.
+            Lydoc n’utilise aucun document client pour entraîner un modèle et
+            aucune décision produisant un effet juridique n’est prise
+            exclusivement par un traitement automatisé.
           </p>
         </>
       ),
@@ -116,9 +117,9 @@ export default function PrivacyPage() {
           </p>
           <p>
             Les catégories de prestataires prévues sont : OVHcloud pour
-            l’hébergement de production, Mistral AI pour les factures opérateur
-            et règlements, et un prestataire d’envoi d’e-mails transactionnels
-            lorsqu’il sera configuré.
+            l’hébergement de production, Mistral AI pour les règlements de jeux
+            importés par l’administration, et un prestataire d’envoi d’e-mails
+            transactionnels lorsqu’il sera configuré.
           </p>
           <p>
             SumUp et le prestataire postal ne reçoivent actuellement aucune
