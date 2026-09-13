@@ -9,7 +9,6 @@ import {
   Prisma,
   RuleStatus,
 } from "@prisma/client";
-import type { LocalEncryptedObjectStorageProvider } from "@lydoc/infrastructure";
 import {
   documentRequirementShortName,
   findMissingDocumentRequirements,
@@ -49,7 +48,6 @@ import {
 export class EligibilityService {
   constructor(
     private readonly prisma: PrismaService,
-    _storage: LocalEncryptedObjectStorageProvider,
     private readonly notifications: NotificationsService,
   ) {}
 
