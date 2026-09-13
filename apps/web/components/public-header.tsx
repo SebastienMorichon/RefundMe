@@ -8,6 +8,8 @@ const links = [
   { href: "/#fonctionnement", label: "Comment ça marche" },
   { href: "/#tarifs", label: "Offres" },
   { href: "/securite", label: "Sécurité" },
+  { href: "/guides", label: "Guides" },
+  { href: "/methode", label: "Notre méthode" },
   { href: "/faq", label: "FAQ" },
 ];
 

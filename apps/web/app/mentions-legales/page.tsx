@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Mentions légales" };
+export const metadata: Metadata = {
+  title: "Mentions légales",
+  description:
+    "Informations sur l’éditeur, l’hébergement et la responsabilité du site Lydoc.",
+  alternates: { canonical: "/mentions-legales" },
+};
 
 export default function LegalNoticePage() {
   const sections = [
@@ -11,11 +16,11 @@ export default function LegalNoticePage() {
       content: (
         <>
           <p>
-            Lydoc est actuellement un projet en phase de pré-lancement. Le
-            service accessible est gratuit et l’offre d’impression et d’envoi
-            postal n’est pas commercialisée.
+            Lydoc est le nom du service proposé sur lydoc.fr. Le service est
+            gratuit. À ce jour, il n’est exploité ni par une société ni par une
+            entreprise immatriculée et ne dispose donc pas de numéro SIREN.
           </p>
-          <p>Site prévu : lydoc.fr. Contact : contact.lydoc@gmail.com.</p>
+          <p>Site : lydoc.fr. Contact : contact@lydoc.fr.</p>
         </>
       ),
     },
@@ -24,11 +29,15 @@ export default function LegalNoticePage() {
       title: "Éditeur du site",
       content: (
         <>
-          <p>Lydoc est actuellement exploité en nom propre par son créateur.</p>
           <p>
-            <strong>À compléter avant ouverture publique :</strong> nom, prénom,
-            domicile et numéro de téléphone de l’éditeur, ou informations
-            d’immatriculation de l’entreprise individuelle si elle est créée.
+            Le site est édité à titre non professionnel par une personne
+            physique, créatrice de Lydoc, qui a choisi de préserver son
+            anonymat.
+          </p>
+          <p>
+            Son identité complète a été communiquée à l’hébergeur conformément à
+            l’article 1-1, II, de la loi n° 2004-575 du 21 juin 2004 pour la
+            confiance dans l’économie numérique.
           </p>
         </>
       ),
@@ -38,15 +47,15 @@ export default function LegalNoticePage() {
       title: "Direction de la publication",
       content: (
         <p>
-          Le créateur exploitant Lydoc en nom propre assumera la direction de la
-          publication. Son identité doit être ajoutée avant l’ouverture
-          publique.
+          La direction de la publication est assurée par le créateur de Lydoc.
+          Son identité n’est pas rendue publique au titre du régime applicable à
+          l’éditeur non professionnel décrit ci-dessus.
         </p>
       ),
     },
     {
       id: "hebergement",
-      title: "Hébergement prévu",
+      title: "Hébergement",
       content: (
         <>
           <p>
@@ -55,8 +64,9 @@ export default function LegalNoticePage() {
             rue Kellermann, 59100 Roubaix, France.
           </p>
           <p>
-            Le service et la région d’hébergement effectivement commandés
-            devront être vérifiés avant publication.
+            Lydoc utilise un serveur VPS-2 OVHcloud situé en France. Les données
+            applicatives hébergées par ce serveur sont conservées en France, au
+            sein de l’Union européenne.
           </p>
         </>
       ),
@@ -89,7 +99,7 @@ export default function LegalNoticePage() {
       content: (
         <p>
           Pour signaler un contenu ou poser une question sur le site, écrivez à
-          contact.lydoc@gmail.com.
+          contact@lydoc.fr.
         </p>
       ),
     },
@@ -101,10 +111,7 @@ export default function LegalNoticePage() {
       title="Mentions légales"
       description="Les informations relatives à l’éditeur et à l’hébergement de Lydoc."
     >
-      <LegalDocument
-        updatedAt="2 août 2026 - identité de l’éditeur à compléter"
-        sections={sections}
-      />
+      <LegalDocument updatedAt="13 septembre 2026" sections={sections} />
     </PublicPage>
   );
 }

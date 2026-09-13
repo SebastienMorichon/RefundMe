@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Politique relative aux cookies" };
+export const metadata: Metadata = {
+  title: "Politique relative aux cookies",
+  description:
+    "Traceurs nécessaires, mesure d’audience et choix disponibles sur Lydoc.",
+  alternates: { canonical: "/cookies" },
+};
 
 export default function CookiesPage() {
   const sections = [
@@ -79,7 +84,7 @@ export default function CookiesPage() {
       content: (
         <p>
           Pour toute question relative aux traceurs ou à vos données, écrivez à
-          rgpd_lydoc@gmail.com.
+          contact@lydoc.fr.
         </p>
       ),
     },

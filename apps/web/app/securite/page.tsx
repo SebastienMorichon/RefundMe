@@ -9,7 +9,12 @@ import {
 } from "lucide-react";
 import { PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Sécurité" };
+export const metadata: Metadata = {
+  title: "Sécurité",
+  description:
+    "Mesures appliquées par Lydoc pour limiter la collecte, protéger les sessions et chiffrer les documents.",
+  alternates: { canonical: "/securite" },
+};
 
 const safeguards = [
   [

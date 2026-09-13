@@ -3,6 +3,9 @@ import { LegalDocument, PublicPage } from "../../components/public-page";
 
 export const metadata: Metadata = {
   title: "Conditions générales d’utilisation",
+  description:
+    "Conditions d’utilisation du service gratuit Lydoc et responsabilités de chaque partie.",
+  alternates: { canonical: "/cgu" },
 };
 
 export default function TermsOfUsePage() {
@@ -17,9 +20,10 @@ export default function TermsOfUsePage() {
             particuliers majeurs résidant en France.
           </p>
           <p>
-            Il aide l’utilisateur à déclarer les frais d’une facture opérateur, à rapprocher
-            les frais détectés d’un règlement de jeu et à constituer un dossier
-            qu’il télécharge, vérifie, imprime et transmet lui-même.
+            Il aide l’utilisateur à déclarer les frais d’une facture opérateur,
+            à rapprocher les frais détectés d’un règlement de jeu et à
+            constituer un dossier qu’il télécharge, vérifie, imprime et transmet
+            lui-même.
           </p>
         </>
       ),
@@ -70,10 +74,11 @@ export default function TermsOfUsePage() {
             erreurs et ne produit aucune décision juridique automatisée.
           </p>
           <p>
-            Les factures opérateur peuvent être transmises au prestataire
-            d’analyse indiqué dans la politique de confidentialité. Les RIB et
-            pièces d’identité ne sont jamais envoyés à une intelligence
-            artificielle.
+            Les factures opérateur ne sont pas transmises au prestataire
+            d’intelligence artificielle utilisé pour préparer les fiches de
+            règlements. L’utilisateur confirme lui-même le nombre de SMS et le
+            montant figurant sur sa facture. Les RIB et pièces d’identité ne
+            sont jamais envoyés à ce prestataire.
           </p>
         </>
       ),
@@ -163,9 +168,9 @@ export default function TermsOfUsePage() {
           </p>
           <p>
             Une demande d’effacement complémentaire, y compris du compte, peut
-            être adressée à rgpd_lydoc@gmail.com. Elle sera traitée sous réserve
-            des obligations légales et de la nécessité de protéger les droits
-            des parties.
+            être adressée à contact@lydoc.fr. Elle sera traitée sous réserve des
+            obligations légales et de la nécessité de protéger les droits des
+            parties.
           </p>
         </>
       ),
@@ -188,8 +193,8 @@ export default function TermsOfUsePage() {
       content: (
         <>
           <p>
-            Toute difficulté peut être signalée à contact.lydoc@gmail.com. Lydoc
-            vise une réponse circonstanciée dans un délai maximal de 30 jours.
+            Toute difficulté peut être signalée à contact@lydoc.fr. Lydoc vise
+            une réponse circonstanciée dans un délai maximal de 30 jours.
           </p>
           <p>
             Les présentes conditions sont soumises au droit français, sans
@@ -207,7 +212,7 @@ export default function TermsOfUsePage() {
       description="Le cadre du service Lydoc actuellement accessible."
     >
       <LegalDocument
-        updatedAt="2 août 2026 - version de pré-lancement"
+        updatedAt="13 septembre 2026 - version de lancement"
         sections={sections}
       />
     </PublicPage>

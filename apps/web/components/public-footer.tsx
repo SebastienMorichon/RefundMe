@@ -7,6 +7,8 @@ const columns = [
       ["Comment ça marche", "/#fonctionnement"],
       ["Offres", "/#tarifs"],
       ["Sécurité", "/securite"],
+      ["Guides pratiques", "/guides"],
+      ["Notre méthode", "/methode"],
       ["FAQ", "/faq"],
     ],
   },

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Politique de confidentialité" };
+export const metadata: Metadata = {
+  title: "Politique de confidentialité",
+  description:
+    "Données utilisées par Lydoc, finalités, durées de conservation et droits des utilisateurs.",
+  alternates: { canonical: "/confidentialite" },
+};
 
 export default function PrivacyPage() {
   const sections = [
@@ -11,16 +16,11 @@ export default function PrivacyPage() {
       content: (
         <>
           <p>
-            Le responsable du traitement est la personne qui exploite Lydoc et
-            décide pourquoi et comment les données sont utilisées. Tant
-            qu’aucune entreprise n’est créée, cette responsabilité est assumée
-            personnellement par le créateur de Lydoc.
+            Le responsable du traitement est Philippe Joubert, créateur de
+            Lydoc, qui décide pourquoi et comment les données sont utilisées.
+            Lydoc est le nom du service et non une société.
           </p>
-          <p>
-            <strong>À compléter avant ouverture publique :</strong> identité et
-            coordonnées postales du responsable. Contact relatif aux données :
-            rgpd_lydoc@gmail.com.
-          </p>
+          <p>Contact relatif aux données personnelles : contact@lydoc.fr.</p>
         </>
       ),
     },
@@ -114,16 +114,16 @@ export default function PrivacyPage() {
             nécessaires au fonctionnement de Lydoc.
           </p>
           <p>
-            Les catégories de prestataires prévues sont : OVHcloud pour
-            l’hébergement de production, Mistral AI pour les règlements de jeux
-            importés par l’administration, et un prestataire d’envoi d’e-mails
-            transactionnels lorsqu’il sera configuré.
+            Les catégories de prestataires sont : OVHcloud pour l’hébergement de
+            production sur un serveur VPS-2 situé en France, Mistral AI pour les
+            règlements de jeux importés par l’administration, et le prestataire
+            d’envoi d’e-mails transactionnels configuré pour le service.
           </p>
           <p>
             SumUp et le prestataire postal ne reçoivent actuellement aucune
-            donnée, car l’offre payante est désactivée. La liste, la
-            localisation et les garanties contractuelles de chaque prestataire
-            seront vérifiées avant l’ouverture publique.
+            donnée, car l’offre payante est désactivée. Les garanties
+            contractuelles et les éventuels transferts de chaque prestataire
+            doivent être suivis pendant toute leur utilisation.
           </p>
         </>
       ),
@@ -133,10 +133,11 @@ export default function PrivacyPage() {
       title: "7. Transferts hors de l’Espace économique européen",
       content: (
         <p>
-          Lydoc privilégie un hébergement en France ou dans l’Union européenne.
-          Si un prestataire implique un transfert hors de l’Espace économique
-          européen, sa base juridique et les garanties applicables seront
-          indiquées ici avant son activation.
+          Le serveur VPS-2 utilisé pour Lydoc et ses données applicatives sont
+          hébergés par OVHcloud en France. Si un autre prestataire implique un
+          transfert hors de l’Espace économique européen, sa base juridique et
+          les garanties applicables sont vérifiées et indiquées avant son
+          activation.
         </p>
       ),
     },
@@ -147,8 +148,8 @@ export default function PrivacyPage() {
         <>
           <p>
             Les documents nécessaires à un dossier sont conservés jusqu’à son
-            téléchargement. Une fois le téléchargement terminé, les pièces et
-            la copie serveur du dossier sont automatiquement mises en purge.
+            téléchargement. Une fois le téléchargement terminé, les pièces et la
+            copie serveur du dossier sont automatiquement mises en purge.
           </p>
           <p>
             Les journaux techniques sont conservés au maximum six mois et les
@@ -177,7 +178,7 @@ export default function PrivacyPage() {
             sur celui-ci.
           </p>
           <p>
-            Adressez votre demande à rgpd_lydoc@gmail.com. Une vérification
+            Adressez votre demande à contact@lydoc.fr. Une vérification
             proportionnée de votre identité pourra être demandée. Vous pouvez
             également déposer une réclamation auprès de la CNIL.
           </p>
@@ -215,10 +216,7 @@ export default function PrivacyPage() {
       title="Politique de confidentialité"
       description="Ce que Lydoc utilise, pourquoi et les protections appliquées à vos documents."
     >
-      <LegalDocument
-        updatedAt="13 septembre 2026 - version locale"
-        sections={sections}
-      />
+      <LegalDocument updatedAt="13 septembre 2026" sections={sections} />
     </PublicPage>
   );
 }

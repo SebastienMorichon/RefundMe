@@ -24,7 +24,7 @@ export default function ContactPage() {
               </span>
               <div>
                 <p className="font-extrabold text-[#24332c]">Par e-mail</p>
-                <p className="mt-1 text-[#66736d]">contact.lydoc@gmail.com</p>
+                <p className="mt-1 text-[#66736d]">contact@lydoc.fr</p>
               </div>
             </div>
             <div className="flex gap-4">

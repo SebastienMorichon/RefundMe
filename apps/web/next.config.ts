@@ -36,6 +36,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source:
+          "/(admin|cases|dashboard|documents|profile|notifications|connexion|inscription|verification-email|mot-de-passe-oublie|reinitialisation-mot-de-passe|achievements|reglements|codex-alignment-check|codex-visual-check|codex-visual-check-mobile)/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           { key: "Content-Security-Policy", value: contentSecurityPolicy },

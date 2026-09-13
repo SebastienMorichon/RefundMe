@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 import { PublicPage } from "../../components/public-page";
 
-export const metadata: Metadata = { title: "Questions fréquentes" };
+export const metadata: Metadata = {
+  title: "Questions fréquentes",
+  description:
+    "Réponses sur les SMS+, les factures, les justificatifs, la sécurité et les demandes préparées avec Lydoc.",
+  alternates: { canonical: "/faq" },
+};
 
 const groups = [
   {
@@ -59,58 +64,77 @@ const groups = [
 ];
 
 export default function FaqPage() {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: groups.flatMap((group) =>
+      group.questions.map(([question, answer]) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      })),
+    ),
+  };
   return (
-    <PublicPage
-      eyebrow="Centre d’aide"
-      title="Tout ce qu’il faut savoir avant de commencer."
-      description="Des réponses simples sur l’analyse, les documents demandés et la préparation de votre dossier."
-    >
-      <section className="page-container py-14 sm:py-20">
-        <div className="grid gap-14">
-          {groups.map((group) => (
-            <section
-              key={group.title}
-              className="grid gap-7 lg:grid-cols-[240px_1fr]"
-            >
-              <h2 className="text-xl font-extrabold text-[#17211d]">
-                {group.title}
-              </h2>
-              <div className="divide-y divide-[#d5dde8] border-y border-[#d5dde8]">
-                {group.questions.map(([question, answer]) => (
-                  <details key={question} className="group">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-base font-extrabold text-[#24332c]">
-                      {question}
-                      <ChevronRight
-                        size={18}
-                        className="shrink-0 text-[#087a55] transition-transform group-open:rotate-90"
-                      />
-                    </summary>
-                    <p className="max-w-2xl pb-6 pr-10 text-sm leading-7 text-[#5d6881]">
-                      {answer}
-                    </p>
-                  </details>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-        <div className="mt-16 flex flex-col justify-between gap-5 border-t border-[#dce5e0] pt-10 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-xl font-extrabold text-[#17211d]">
-              Une question reste sans réponse ?
-            </h2>
-            <p className="mt-2 text-sm text-[#5d6881]">
-              Notre équipe vous répondra avec plaisir.
-            </p>
+    <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
+      <PublicPage
+        eyebrow="Centre d’aide"
+        title="Tout ce qu’il faut savoir avant de commencer."
+        description="Des réponses simples sur l’analyse, les documents demandés et la préparation de votre dossier."
+      >
+        <section className="page-container py-14 sm:py-20">
+          <div className="grid gap-14">
+            {groups.map((group) => (
+              <section
+                key={group.title}
+                className="grid gap-7 lg:grid-cols-[240px_1fr]"
+              >
+                <h2 className="text-xl font-extrabold text-[#17211d]">
+                  {group.title}
+                </h2>
+                <div className="divide-y divide-[#d5dde8] border-y border-[#d5dde8]">
+                  {group.questions.map(([question, answer]) => (
+                    <details key={question} className="group">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-base font-extrabold text-[#24332c]">
+                        {question}
+                        <ChevronRight
+                          size={18}
+                          className="shrink-0 text-[#087a55] transition-transform group-open:rotate-90"
+                        />
+                      </summary>
+                      <p className="max-w-2xl pb-6 pr-10 text-sm leading-7 text-[#5d6881]">
+                        {answer}
+                      </p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
-          <a
-            href="/contact"
-            className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#087a55] px-5 text-sm font-extrabold text-white"
-          >
-            Nous contacter
-          </a>
-        </div>
-      </section>
-    </PublicPage>
+          <div className="mt-16 flex flex-col justify-between gap-5 border-t border-[#dce5e0] pt-10 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-xl font-extrabold text-[#17211d]">
+                Une question reste sans réponse ?
+              </h2>
+              <p className="mt-2 text-sm text-[#5d6881]">
+                Notre équipe vous répondra avec plaisir.
+              </p>
+            </div>
+            <a
+              href="/contact"
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-[#087a55] px-5 text-sm font-extrabold text-white"
+            >
+              Nous contacter
+            </a>
+          </div>
+        </section>
+      </PublicPage>
+    </div>
   );
 }

@@ -21,6 +21,7 @@ export const metadata: Metadata = {
   title: "Remboursement des SMS surtaxés de jeux-concours",
   description:
     "Lydoc prépare gratuitement votre dossier de remboursement de SMS surtaxés liés aux jeux-concours, à partir des informations que vous confirmez.",
+  alternates: { canonical: "/" },
 };
 
 const steps = [
@@ -65,6 +66,34 @@ const faqs = [
 export default function HomePage() {
   return (
     <div className="bg-white text-[#17211d]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "Organization",
+                "@id": `${process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr"}/#organization`,
+                name: "Lydoc",
+                url: process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr",
+                email: "contact@lydoc.fr",
+                logo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr"}/brand/lydoc-logo.svg`,
+              },
+              {
+                "@type": "WebSite",
+                "@id": `${process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr"}/#website`,
+                name: "Lydoc",
+                url: process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr",
+                inLanguage: "fr-FR",
+                publisher: {
+                  "@id": `${process.env.NEXT_PUBLIC_APP_URL ?? "https://lydoc.fr"}/#organization`,
+                },
+              },
+            ],
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       <PublicHeader />
       <main>
         <section className="lydoc-hero relative isolate overflow-hidden border-b border-[#dce5e0] bg-[#fbfaf5]">

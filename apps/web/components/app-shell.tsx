@@ -2,6 +2,7 @@
 
 import {
   CircleHelp,
+  ChartNoAxesCombined,
   FileText,
   Home,
   LogOut,
@@ -33,7 +34,8 @@ export type AppSection =
   | "admin"
   | "admin-invoices"
   | "admin-fulfillment"
-  | "admin-pricing";
+  | "admin-pricing"
+  | "admin-marketing";
 
 type AppShellProps = {
   children: ReactNode;
@@ -249,6 +251,15 @@ export function AppShell({
               />
               <SidebarLink
                 item={{
+                  id: "admin-marketing",
+                  href: "/admin/marketing",
+                  label: "Acquisition",
+                  icon: ChartNoAxesCombined,
+                }}
+                active={active === "admin-marketing"}
+              />
+              <SidebarLink
+                item={{
                   id: "admin-pricing",
                   href: "/admin/pricing",
                   label: "Tarification",
@@ -411,6 +422,16 @@ export function AppShell({
                       icon: FileText,
                     }}
                     active={active === "admin-invoices"}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                  <SidebarLink
+                    item={{
+                      id: "admin-marketing",
+                      href: "/admin/marketing",
+                      label: "Acquisition",
+                      icon: ChartNoAxesCombined,
+                    }}
+                    active={active === "admin-marketing"}
                     onNavigate={() => setMobileOpen(false)}
                   />
                   <SidebarLink

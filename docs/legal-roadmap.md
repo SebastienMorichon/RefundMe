@@ -12,18 +12,18 @@ Ce document suit les decisions produit et les points a terminer. Les textes publ
 - Offre d'impression et d'envoi postal desactivee et presentee comme bientot disponible.
 - Aucun abonnement, aucune commission sur le remboursement et aucun encaissement des sommes remboursees.
 - Obligation de moyens, sans garantie d'acceptation par l'organisateur.
-- Factures operateur et reglements uniquement dans les flux Mistral.
+- Les factures operateur ne sont pas transmises a Mistral. Seuls les reglements importes par l'administration peuvent etre analyses par ce prestataire.
 - RIB et pieces d'identite filigranes localement puis chiffres, sans analyse par une IA.
 - Suppression des documents disponible; suppression du compte sur demande RGPD.
-- Contact general : contact.lydoc@gmail.com.
-- Contact RGPD prevu : rgpd_lydoc@gmail.com.
+- Contact general et RGPD : contact@lydoc.fr.
 
 ## Avant toute ouverture publique
 
-- [ ] Ajouter le nom, le prenom, l'adresse et le telephone de l'editeur.
-- [ ] Confirmer l'identite du directeur de la publication.
-- [ ] Commander l'hebergement OVHcloud et confirmer le service, la region et les coordonnees contractuelles.
-- [ ] Creer l'adresse rgpd_lydoc@gmail.com et verifier sa reception.
+- [x] Retenir le statut d'editeur non professionnel et confirmer que son identite a ete communiquee a l'hebergeur.
+- [x] Confirmer que le directeur de la publication est le createur de Lydoc, dont l'anonymat est preserve dans les mentions legales.
+- [x] Confirmer l'hebergement : VPS-2 OVHcloud situe en France, donnees applicatives hebergees en France.
+- [x] Identifier Philippe Joubert comme responsable de traitement dans la politique de confidentialite.
+- [x] Verifier que contact@lydoc.fr recoit les demandes generales et RGPD (test de production recu le 13 septembre 2026).
 - [ ] Completer et tenir le registre des activites de traitement.
 - [ ] Cartographier les donnees envoyees a OVHcloud, Mistral et au prestataire d'e-mails.
 - [ ] Verifier les accords de sous-traitance, localisations et transferts internationaux.

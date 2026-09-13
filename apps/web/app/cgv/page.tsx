@@ -64,7 +64,7 @@ export default function SalesTermsPage() {
       content: (
         <p>
           Pour toute question sur le service actuel ou la future offre, écrivez
-          à contact.lydoc@gmail.com.
+          à contact@lydoc.fr.
         </p>
       ),
     },
