@@ -46,7 +46,13 @@ export function Notice({
   );
 }
 
-export function JourneySteps({ current }: { current: number }) {
+export function JourneySteps({
+  current,
+  currentCompleted = false,
+}: {
+  current: number;
+  currentCompleted?: boolean;
+}) {
   const steps = [
     "Détection",
     "Préparation",
@@ -58,8 +64,9 @@ export function JourneySteps({ current }: { current: number }) {
   return (
     <ol className="grid grid-cols-5" aria-label="Avancement du dossier">
       {steps.map((label, index) => {
-        const completed = index < current;
-        const active = index === current;
+        const completed =
+          index < current || (index === current && currentCompleted);
+        const active = index === current && !completed;
         return (
           <li key={label} className="min-w-0">
             <div className="flex items-center">

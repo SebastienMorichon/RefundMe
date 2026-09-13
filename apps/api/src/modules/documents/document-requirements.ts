@@ -63,7 +63,7 @@ export function isUsableCaseDocument(
     return true;
   }
 
-  return !watermarkingRequired || document.watermarked;
+  return watermarkingRequired ? document.watermarked : !document.watermarked;
 }
 
 export function findMissingDocumentRequirements(

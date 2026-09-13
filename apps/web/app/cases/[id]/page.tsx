@@ -8,6 +8,7 @@ import { apiFetch as fetch } from "../../../lib/api-client";
 import {
   ChoiceView,
   DocumentsView,
+  DownloadedSelfServiceView,
   ManagedPostalUnavailableView,
   PostalConsentView,
   PostalQuoteView,
@@ -110,7 +111,8 @@ export default function CasePage() {
         credentials: "include",
       });
       const payload = await readJson(response);
-      const configuration = payload.configuration as Record<string, unknown> | undefined;
+      const configuration = payload.configuration as
+        Record<string, unknown> | undefined;
       const enabled = response.ok && configuration?.paymentEnabled === true;
       setPaymentEnabled(enabled);
       return enabled;
@@ -120,7 +122,9 @@ export default function CasePage() {
     }
   }
 
-  async function loadCase(commerciallyEnabled = paymentEnabled): Promise<CaseDetail | null> {
+  async function loadCase(
+    commerciallyEnabled = paymentEnabled,
+  ): Promise<CaseDetail | null> {
     try {
       const response = await fetch(`${apiUrl}/cases/${caseId}`, {
         credentials: "include",
@@ -159,7 +163,10 @@ export default function CasePage() {
 
       setAdministrativeCase(parsedCase);
       setFulfillmentSelection(parsedCase.fulfillmentMode);
-      const state = caseNotice(parsedCase, managedPostalEnabled && commerciallyEnabled);
+      const state = caseNotice(
+        parsedCase,
+        managedPostalEnabled && commerciallyEnabled,
+      );
       setMessage(state.message);
       setMessageTone(state.tone);
       return parsedCase;
@@ -268,12 +275,8 @@ export default function CasePage() {
       setAdministrativeCase(parsedCase);
       setMessage(
         parsedCase.missingDocuments.length === 0
-          ? uploadedDocument.watermarked
-            ? "Toutes les pièces sont réunies. Le document sensible a été filigrané, chiffré et ajouté au dossier."
-            : "Toutes les pièces sont réunies."
-          : uploadedDocument.watermarked
-            ? "La pièce a été filigranée, chiffrée et ajoutée au dossier."
-            : "La pièce a bien été ajoutée.",
+          ? "Toutes les pièces sont réunies."
+          : "La pièce a bien été ajoutée.",
       );
       setMessageTone("success");
     } catch (error) {
@@ -478,12 +481,20 @@ export default function CasePage() {
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setMessage(
         finalPacket
-          ? "Votre dossier complet a été téléchargé."
+          ? "Votre dossier complet a été téléchargé. Les pièces conservées par Lydoc sont en cours de suppression."
           : "L’aperçu est prêt.",
       );
       setMessageTone("success");
-      if (administrativeCase?.fulfillmentMode === "SELF_SERVICE")
-        await loadCase();
+      if (administrativeCase?.fulfillmentMode === "SELF_SERVICE") {
+        setAdministrativeCase((current) =>
+          current
+            ? {
+                ...current,
+                selfServiceDownloadedAt: new Date().toISOString(),
+              }
+            : current,
+        );
+      }
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -696,7 +707,12 @@ export default function CasePage() {
             </div>
           </div>
           <div className="border-t border-[#e3e9e6] bg-[#fbfcfb] px-5 py-5 sm:px-7">
-            <JourneySteps current={currentStep} />
+            <JourneySteps
+              current={currentStep}
+              currentCompleted={["SENT", "REFUNDED"].includes(
+                administrativeCase.status,
+              )}
+            />
           </div>
         </section>
 
@@ -708,7 +724,14 @@ export default function CasePage() {
 
         <div className="mx-auto mt-6 max-w-[1020px]">
           <div>
-            {administrativeCase.missingDocuments.length > 0 ? (
+            {administrativeCase.selfServiceDownloadedAt ? (
+              <DownloadedSelfServiceView
+                administrativeCase={administrativeCase}
+                isBusy={isBusy}
+                onSent={markSent}
+                onRefunded={markRefunded}
+              />
+            ) : administrativeCase.missingDocuments.length > 0 ? (
               <DocumentsView
                 administrativeCase={administrativeCase}
                 isBusy={isBusy}

@@ -370,6 +370,7 @@ model AdministrativeCase {
   validatedAt               DateTime?
   validationSnapshotJson    Json?
   fulfillmentMode           CaseFulfillmentMode?
+  selfServiceDownloadedAt   DateTime?
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
 

@@ -41,6 +41,95 @@ test("document deletion blockers cover payment, packet, final and postal states"
   );
 });
 
+test("a completed self-service download immediately stages documents and packet for purge", async () => {
+  const purgeJobs = [];
+  const deletedRelations = [];
+  const caseUpdates = [];
+  const transaction = {
+    $executeRaw: async () => 0,
+    administrativeCase: {
+      findFirst: async () => ({
+        id: "case-1",
+        documents: [{ documentId: "doc-1" }],
+        generatedPackets: [
+          {
+            id: "packet-1",
+            storageBucket: "local-documents",
+            storageKey: "packet.bin",
+            checksumSha256: "a".repeat(64),
+            sizeBytes: 200,
+          },
+        ],
+      }),
+      update: async (input) => {
+        caseUpdates.push(input);
+        return { id: "case-1" };
+      },
+    },
+    document: {
+      findMany: async () => [
+        {
+          id: "doc-1",
+          storageBucket: "local-documents",
+          storageKey: "document.bin",
+          checksumSha256: "b".repeat(64),
+          sizeBytes: 100,
+          storageRevisions: [],
+        },
+      ],
+      updateMany: async () => ({ count: 1 }),
+    },
+    caseDocument: {
+      deleteMany: async (input) => deletedRelations.push(input),
+    },
+    ocrResult: { deleteMany: async () => ({ count: 1 }) },
+    documentAnalysis: { deleteMany: async () => ({ count: 1 }) },
+    documentStorageRevision: { updateMany: async () => ({ count: 0 }) },
+    generatedPacket: { updateMany: async () => ({ count: 1 }) },
+    storagePurgeJob: {
+      upsert: async (input) => purgeJobs.push(input.create),
+    },
+    auditLog: { create: async () => ({}) },
+  };
+  const service = new DocumentLifecycleService(
+    { $transaction: async (operation) => operation(transaction) },
+    {},
+    {},
+  );
+  let processed = false;
+  service.processStoragePurgeJobs = async () => {
+    processed = true;
+    return {
+      revisionResults: [],
+      generatedPacketResults: [],
+      documentResults: [],
+    };
+  };
+
+  const result = await service.purgeSelfServiceCaseAfterDownload(
+    "case-1",
+    "user-1",
+  );
+
+  assert.deepEqual(result, {
+    skipped: false,
+    documentIds: ["doc-1"],
+    packetIds: ["packet-1"],
+  });
+  assert.equal(processed, true);
+  assert.equal(caseUpdates.length, 1);
+  assert.equal(caseUpdates[0].where.id, "case-1");
+  assert.ok(caseUpdates[0].data.selfServiceDownloadedAt instanceof Date);
+  assert.equal(deletedRelations.length, 2);
+  assert.deepEqual(
+    purgeJobs.map(({ groupType, groupId }) => [groupType, groupId]),
+    [
+      ["DOCUMENT", "doc-1"],
+      ["PACKET", "packet-1"],
+    ],
+  );
+});
+
 test("requestDeletion locks and re-reads before a concurrent PENDING checkout", async () => {
   const locks = [];
   let detached = false;

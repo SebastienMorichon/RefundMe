@@ -35,7 +35,6 @@ import {
   type FulfillmentMode,
   type RequiredDocument,
 } from "../lib/case-detail";
-import { sensitiveDocumentWatermarkingEnabled } from "../lib/feature-flags";
 
 export function DocumentsView({
   administrativeCase,
@@ -107,9 +106,8 @@ export function DocumentsView({
 
       <p className="mt-5 flex items-center justify-center gap-2 text-xs text-[#66736d]">
         <LockKeyhole size={14} />
-        {sensitiveDocumentWatermarkingEnabled
-          ? "RIB et pièces d’identité sont filigranés, puis tous les documents sont chiffrés."
-          : "Aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les anciens fichiers filigranés le restent jusqu’à leur remplacement ; tous les documents restent chiffrés."}
+        Tous les documents sont chiffrés, puis supprimés après le téléchargement
+        du dossier.
       </p>
       <div className="mt-7 text-center">
         <button type="button" disabled className="primary-button min-w-[190px]">
@@ -160,9 +158,7 @@ function DocumentRequirementRow({
             {item.supplied
               ? "Document ajouté au dossier."
               : item.documentId
-                ? sensitiveDocumentWatermarkingEnabled
-                  ? "Remplacez cet ancien fichier pour appliquer le filigrane."
-                  : "Remplacez cet ancien fichier par une copie sans filigrane."
+                ? "Remplacez cet ancien fichier pour continuer."
                 : documentHelp(item)}
           </p>
         </div>
@@ -625,6 +621,11 @@ export function SelfServiceView({
         Le PDF contient la lettre de demande et toutes les pièces exigées par le
         règlement.
       </p>
+      <p className="mx-auto mt-3 max-w-xl text-xs leading-5 text-[#7b8781]">
+        Pour votre sécurité, les pièces et la copie conservée par Lydoc sont
+        automatiquement supprimées à la fin du téléchargement. Conservez le PDF
+        téléchargé dans un emplacement sûr.
+      </p>
 
       <div className="surface mt-7 divide-y divide-[#e3e9e6] text-left">
         <GuideLine
@@ -694,6 +695,79 @@ export function SelfServiceView({
           </button>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+export function DownloadedSelfServiceView({
+  administrativeCase,
+  isBusy,
+  onSent,
+  onRefunded,
+}: {
+  administrativeCase: CaseDetail;
+  isBusy: boolean;
+  onSent: () => Promise<void>;
+  onRefunded: () => Promise<void>;
+}) {
+  const refunded = administrativeCase.status === "REFUNDED";
+  const sent = administrativeCase.status === "SENT";
+  return (
+    <section className="mx-auto max-w-3xl text-center">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#eaf8f1] text-[#16875b]">
+        <ShieldCheck size={23} />
+      </span>
+      <p className="mt-5 text-xs font-extrabold uppercase text-[#16875b]">
+        Documents protégés
+      </p>
+      <h2 className="mt-3 text-2xl font-extrabold text-[#17211d]">
+        {refunded
+          ? "Votre remboursement est confirmé."
+          : sent
+            ? "Votre dossier a bien été envoyé."
+            : "Ce dossier a déjà été téléchargé."}
+      </h2>
+      <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[#66736d]">
+        Pour protéger vos documents sensibles, les pièces et la copie serveur du
+        dossier ont été supprimées après le téléchargement. Il n’est donc plus
+        possible de télécharger ce dossier une seconde fois.
+      </p>
+      <p className="mx-auto mt-3 max-w-xl text-sm font-bold leading-6 text-[#425249]">
+        Si vous n’avez pas conservé le PDF, créez un nouveau dossier et déposez
+        à nouveau les pièces demandées.
+      </p>
+      <div className="mt-7 flex flex-col items-center gap-3">
+        {!sent && !refunded ? (
+          <button
+            type="button"
+            onClick={() => void onSent()}
+            disabled={isBusy}
+            className="primary-button min-w-[270px]"
+          >
+            <Send size={17} /> J’ai envoyé mon dossier
+          </button>
+        ) : null}
+        {!refunded ? (
+          <button
+            type="button"
+            onClick={() => void onRefunded()}
+            disabled={isBusy}
+            className={
+              sent
+                ? "primary-button min-w-[270px]"
+                : "secondary-button min-w-[270px]"
+            }
+          >
+            <CircleDollarSign size={17} /> J’ai reçu mon remboursement
+          </button>
+        ) : null}
+        <a
+          href="/dashboard"
+          className="mt-2 text-sm font-bold text-[#66736d] hover:text-[#087a55]"
+        >
+          Retourner à mes dossiers
+        </a>
+      </div>
     </section>
   );
 }
@@ -868,17 +942,15 @@ export function PostalQuoteView({
         />
         <ReviewLine
           label={
-            shipment.product === "vertesuivi"
-              ? "Envoi suivi"
-              : "e-Lettre rouge"
+            shipment.product === "vertesuivi" ? "Envoi suivi" : "e-Lettre rouge"
           }
           value={formatCents(shipment.postageCents)}
         />
         <ReviewLine label="Total" value={formatCents(total)} strong />
       </dl>
       <p className="mt-3 text-xs leading-5 text-[#66736d]">
-        Les frais de service ne sont pas remboursés par l’organisateur. Pour
-        ce règlement, la base postale indiquée est{" "}
+        Les frais de service ne sont pas remboursés par l’organisateur. Pour ce
+        règlement, la base postale indiquée est{" "}
         {administrativeCase.review.postalExpenseReimbursement.postage
           .amountCents !== null
           ? `de ${formatCents(administrativeCase.review.postalExpenseReimbursement.postage.amountCents)}`
@@ -887,7 +959,10 @@ export function PostalQuoteView({
         remboursées à 0,30 € par page.
       </p>
       <div className="surface mt-4 p-4 sm:p-5">
-        <label className="text-sm font-extrabold text-[#24332c]" htmlFor="promo-code">
+        <label
+          className="text-sm font-extrabold text-[#24332c]"
+          htmlFor="promo-code"
+        >
           Code promotionnel
         </label>
         <div className="mt-2 flex gap-2">

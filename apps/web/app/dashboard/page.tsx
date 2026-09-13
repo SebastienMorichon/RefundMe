@@ -2,12 +2,10 @@
 
 import {
   ArrowRight,
-  Bell,
   Check,
   ChevronRight,
   CircleDollarSign,
   FileCheck2,
-  Flag,
   FolderOpen,
   Headphones,
   RefreshCw,
@@ -42,7 +40,7 @@ import {
 import { priorityCase, recoveryStats } from "../../lib/gamification";
 
 type LoadState = "loading" | "ready" | "offline";
-type MetricTone = "mint" | "coral" | "amber" | "rose";
+type MetricTone = "mint" | "coral" | "amber";
 
 const heroSteps = [
   { number: "1", label: "SMS+ détectés", tone: "mint" },
@@ -144,11 +142,6 @@ export default function DashboardPage() {
   const sentCases = cases.filter((item) =>
     ["SENT", "REFUNDED"].includes(item.status),
   ).length;
-  const attentionCases = cases.filter((item) =>
-    ["DRAFT", "WAITING_FOR_USER_DOCUMENTS", "READY_TO_PAY"].includes(
-      item.status,
-    ),
-  ).length;
   const recentCases = [...cases]
     .sort(
       (left, right) => dateValue(right.createdAt) - dateValue(left.createdAt),
@@ -172,17 +165,6 @@ export default function DashboardPage() {
               Nouveau remboursement <Upload size={16} />
             </a>
           ) : null}
-          <a
-            href="/notifications"
-            aria-label="Consulter les alertes"
-            className="relative hidden h-11 w-11 shrink-0 place-items-center rounded-xl text-[#1b3128] transition-colors hover:bg-[#eef6f1] lg:grid"
-          >
-            <Bell size={21} strokeWidth={1.9} />
-            <span
-              aria-hidden="true"
-              className="absolute right-2.5 top-2 h-2 w-2 rounded-full border-2 border-white bg-[#ff5f50]"
-            />
-          </a>
         </header>
 
         <section
@@ -246,7 +228,7 @@ export default function DashboardPage() {
         </section>
 
         <section
-          className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
           aria-label="Indicateurs principaux"
         >
           <DashboardMetric
@@ -274,14 +256,6 @@ export default function DashboardPage() {
             href="/cases"
             icon={Send}
             tone="amber"
-          />
-          <DashboardMetric
-            label="Alertes"
-            value={String(attentionCases)}
-            detail="Voir les alertes"
-            href="/notifications"
-            icon={Flag}
-            tone="rose"
           />
         </section>
 
@@ -376,7 +350,6 @@ function DashboardMetric({
     mint: { background: "bg-[#dff2e9]", color: "text-[#16865e]" },
     coral: { background: "bg-[#ffede8]", color: "text-[#f06d52]" },
     amber: { background: "bg-[#fff4d6]", color: "text-[#eda10d]" },
-    rose: { background: "bg-[#fff0eb]", color: "text-[#e9674d]" },
   };
   const style = styles[tone];
 

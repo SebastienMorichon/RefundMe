@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
-import { sensitiveDocumentWatermarkingEnabled } from "../../lib/feature-flags";
 
 export const metadata: Metadata = { title: "Politique de confidentialité" };
 
@@ -93,9 +92,8 @@ export default function PrivacyPage() {
       content: (
         <>
           <p>
-            {sensitiveDocumentWatermarkingEnabled
-              ? "Avant leur stockage, les RIB et pièces d’identité reçoivent localement un filigrane précisant leur usage limité au dossier de remboursement. Tous les documents sont ensuite chiffrés et rattachés au compte qui les a déposés."
-              : "Dans la version locale, aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les fichiers déjà filigranés le restent jusqu’à leur remplacement. Comme tous les autres documents, ils restent chiffrés et rattachés au compte qui les a déposés."}
+            Avant leur stockage, les documents sont chiffrés et rattachés au
+            compte qui les a déposés.
           </p>
           <p>
             Un document est déchiffré uniquement pour une opération autorisée,
@@ -148,17 +146,14 @@ export default function PrivacyPage() {
       content: (
         <>
           <p>
-            La configuration de pré-lancement limite actuellement la
-            conservation opérationnelle des documents à 365 jours, sauf
-            suppression anticipée par l’utilisateur. Une demande de suppression
-            bénéficie d’un délai technique de sept jours avant purge définitive.
+            Les documents nécessaires à un dossier sont conservés jusqu’à son
+            téléchargement. Une fois le téléchargement terminé, les pièces et
+            la copie serveur du dossier sont automatiquement mises en purge.
           </p>
           <p>
-            Avant l’ouverture publique, une suppression automatique spécifique
-            des RIB et pièces d’identité doit être mise en place au plus tard 30
-            jours après le premier téléchargement du dossier final. Les journaux
-            techniques seront conservés au maximum six mois et les sauvegardes
-            supprimées selon un cycle maximal de 30 jours.
+            Les journaux techniques sont conservés au maximum six mois et les
+            sauvegardes supprimées selon un cycle maximal de 30 jours. Ils ne
+            contiennent pas le contenu des pièces déposées.
           </p>
           <p>
             Le compte est conservé tant qu’il est utilisé. Sa suppression peut
@@ -221,11 +216,7 @@ export default function PrivacyPage() {
       description="Ce que Lydoc utilise, pourquoi et les protections appliquées à vos documents."
     >
       <LegalDocument
-        updatedAt={
-          sensitiveDocumentWatermarkingEnabled
-            ? "2 août 2026 - version de pré-lancement"
-            : "9 septembre 2026 - configuration locale"
-        }
+        updatedAt="13 septembre 2026 - version locale"
         sections={sections}
       />
     </PublicPage>

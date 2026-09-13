@@ -32,6 +32,7 @@ export type CaseSummary = {
   id: string;
   status: string;
   fulfillmentMode: "SELF_SERVICE" | "MANAGED_POSTAL" | null;
+  selfServiceDownloadedAt: string | null;
   estimatedRecoverableCents: number;
   serviceFeeCents: number;
   confidence: number | null;
@@ -195,6 +196,10 @@ export function readCaseSummary(value: unknown): CaseSummary | null {
       item.fulfillmentMode === "MANAGED_POSTAL"
         ? item.fulfillmentMode
         : null,
+    selfServiceDownloadedAt:
+      typeof item.selfServiceDownloadedAt === "string"
+        ? item.selfServiceDownloadedAt
+        : null,
     estimatedRecoverableCents: item.estimatedRecoverableCents,
     serviceFeeCents: item.serviceFeeCents,
     confidence: typeof item.confidence === "number" ? item.confidence : null,
@@ -274,6 +279,7 @@ export function nextCaseAction(item: CaseSummary): string {
   if (item.status === "READY_TO_PAY" && !item.fulfillmentMode)
     return "Vérifier ou choisir";
   if (item.status === "REFUNDED") return "Voir le remboursement";
+  if (item.selfServiceDownloadedAt) return "Voir le dossier archivé";
   if (item.fulfillmentMode === "SELF_SERVICE") return "Télécharger le dossier";
   if (["PAID", "PRINT_READY", "SENT"].includes(item.status))
     return "Suivre l’envoi";

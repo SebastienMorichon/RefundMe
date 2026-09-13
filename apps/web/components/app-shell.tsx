@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Bell,
   CircleHelp,
   FileText,
   Home,
@@ -30,7 +29,6 @@ export type AppSection =
   | "rules"
   | "achievements"
   | "profile"
-  | "notifications"
   | "admin-clients"
   | "admin"
   | "admin-invoices"
@@ -72,7 +70,6 @@ const navigationItems: NavigationItem[] = [
     label: "Progression",
     icon: ProgressIcon,
   },
-  { id: "notifications", href: "/notifications", label: "Alertes", icon: Bell },
   { id: "profile", href: "/profile", label: "Paramètres", icon: Settings },
 ];
 
@@ -87,7 +84,6 @@ export function AppShell({
   isAdmin = false,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [logoutError, setLogoutError] = useState("");
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -113,28 +109,6 @@ export function AppShell({
       );
     }
   }
-
-  useEffect(() => {
-    if (!email) return;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-    void fetch(`${apiUrl}/notifications`, { credentials: "include" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload: unknown) => {
-        if (!payload || typeof payload !== "object") return;
-        const notifications = (payload as Record<string, unknown>)
-          .notifications;
-        setHasUnreadNotifications(
-          Array.isArray(notifications) &&
-            notifications.some(
-              (item) =>
-                Boolean(item) &&
-                typeof item === "object" &&
-                !(item as Record<string, unknown>).readAt,
-            ),
-        );
-      })
-      .catch(() => undefined);
-  }, [email]);
 
   useEffect(() => {
     if (!email) return;
@@ -348,22 +322,6 @@ export function AppShell({
           </button>
           <a href="/dashboard" aria-label="Accueil Lydoc">
             <Brand inverse />
-          </a>
-          <a
-            href="/notifications"
-            aria-label="Notifications"
-            className="relative ml-auto grid h-10 w-10 place-items-center rounded-md hover:bg-white/10"
-          >
-            <Bell size={18} />
-            {hasUnreadNotifications ? (
-              <>
-                <span
-                  aria-hidden="true"
-                  className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-[#ff8068]"
-                />
-                <span className="sr-only">Notifications non lues</span>
-              </>
-            ) : null}
           </a>
         </header>
 

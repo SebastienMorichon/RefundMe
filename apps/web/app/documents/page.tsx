@@ -3,7 +3,6 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Bell,
   Check,
   CheckCircle2,
   Clock3,
@@ -543,7 +542,6 @@ function DocumentList({
         >
           Préparer un remboursement <UploadCloud size={17} />
         </button>
-        <NotificationLink />
       </div>
 
       <section
@@ -722,14 +720,8 @@ function DocumentList({
                           {document.originalName}
                         </p>
                         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[#7b8781]">
-                          {document.watermarked ? (
-                            <ShieldCheck size={12} />
-                          ) : (
-                            <LockKeyhole size={12} />
-                          )}
-                          {document.watermarked
-                            ? "Filigrané et chiffré"
-                            : "Chiffré"}
+                          <LockKeyhole size={12} />
+                          Chiffré
                           <span aria-hidden="true">·</span>
                           {formatBytes(document.sizeBytes)}
                         </p>
@@ -870,22 +862,6 @@ function DocumentMetric({
         <Icon size={21} strokeWidth={1.8} />
       </span>
     </article>
-  );
-}
-
-function NotificationLink() {
-  return (
-    <a
-      href="/notifications"
-      aria-label="Consulter les alertes"
-      className="relative hidden h-11 w-11 shrink-0 place-items-center rounded-xl text-[#1b3128] transition-colors hover:bg-[#eef6f1] lg:grid"
-    >
-      <Bell size={21} strokeWidth={1.9} />
-      <span
-        aria-hidden="true"
-        className="absolute right-2.5 top-2 h-2 w-2 rounded-full border-2 border-white bg-[#ff5f50]"
-      />
-    </a>
   );
 }
 
@@ -1076,7 +1052,6 @@ function UploadView({
             )}
             Créer mon dossier
           </button>
-          <NotificationLink />
         </div>
       </div>
 
@@ -1544,7 +1519,6 @@ function ResultView({
               <span className="hidden sm:inline">Nouveau dossier</span>
               <span className="sm:hidden">Créer</span>
             </button>
-            <NotificationLink />
           </div>
         </div>
 
@@ -1700,7 +1674,6 @@ function ResultView({
             <span className="hidden sm:inline">Nouveau dossier</span>
             <span className="sm:hidden">Créer</span>
           </button>
-          <NotificationLink />
         </div>
       </div>
 

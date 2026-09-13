@@ -1,5 +1,4 @@
 import { formatCents } from "./client-data";
-import { sensitiveDocumentWatermarkingEnabled } from "./feature-flags";
 
 export type RequiredDocument = {
   kind: string;
@@ -48,6 +47,7 @@ export type CaseDetail = {
   id: string;
   status: string;
   fulfillmentMode: FulfillmentMode | null;
+  selfServiceDownloadedAt: string | null;
   estimatedRecoverableCents: number;
   serviceFeeCents: number;
   rule: { id: string; version: number; name: string; organizer: string };
@@ -153,9 +153,7 @@ export function missingDocumentPrompt(
 ): string {
   if (!document) return "Ajoutez la pièce manquante pour continuer.";
   if (document.documentId) {
-    return sensitiveDocumentWatermarkingEnabled
-      ? "Remplacez cet ancien document pour lui appliquer le filigrane requis."
-      : "Remplacez cet ancien document par une copie sans filigrane.";
+    return "Remplacez cet ancien document pour continuer.";
   }
   if (document.kind === "IDENTITY_DOCUMENT") {
     return "Ajoutez votre pièce d’identité pour continuer.";
@@ -225,6 +223,12 @@ export function caseNotice(
       tone: "success",
     };
   }
+  if (administrativeCase.selfServiceDownloadedAt)
+    return {
+      message:
+        "Ce dossier a déjà été téléchargé. Les documents sensibles ont été supprimés et ne peuvent plus être téléchargés.",
+      tone: "info",
+    };
   if (administrativeCase.fulfillmentMode === "SELF_SERVICE")
     return {
       message: "Votre dossier gratuit est prêt à être téléchargé.",
@@ -423,6 +427,10 @@ export function readCaseDetail(value: unknown): CaseDetail | null {
       item.fulfillmentMode === "SELF_SERVICE" ||
       item.fulfillmentMode === "MANAGED_POSTAL"
         ? item.fulfillmentMode
+        : null,
+    selfServiceDownloadedAt:
+      typeof item.selfServiceDownloadedAt === "string"
+        ? item.selfServiceDownloadedAt
         : null,
     estimatedRecoverableCents: item.estimatedRecoverableCents,
     serviceFeeCents: item.serviceFeeCents,

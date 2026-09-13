@@ -7,7 +7,9 @@ const {
   createCasePacket,
   findMissingRequiredDocumentLabels,
   generatedPacketEncryptionContext,
+  knownReimbursementTotalCents,
   postalExpenseClaimParagraphs,
+  reimbursementAmountBreakdownParagraph,
   sensitivePacketRetentionDeadline,
   smsParticipationParagraph,
   shouldGenerateFinalPacket,
@@ -129,9 +131,11 @@ test("adds the optional postage and printing request to the letter", () => {
   });
 
   assert.equal(paragraphs.length, 3);
-  assert.match(paragraphs[0], /frais d'affranchissement et d'impression/);
+  assert.match(paragraphs[0], /ajouter à ce montant connu/);
+  assert.match(paragraphs[0], /frais d'impression/);
+  assert.doesNotMatch(paragraphs[0], /frais d'affranchissement/);
   assert.match(paragraphs[0], /l'article 6 du règlement/);
-  assert.match(paragraphs[1], /0,15 euro par page/);
+  assert.match(paragraphs[1], /15 centimes par page/);
   assert.match(paragraphs[2], /seule présentée par mon foyer/);
   assert.doesNotMatch(paragraphs.join(" "), /\(s\)/);
 });
@@ -216,6 +220,30 @@ test("does not repeat calculated printing pages in postal expense paragraphs", (
 
   assert.doesNotMatch(paragraphs.join(" "), /7 pages/);
   assert.doesNotMatch(paragraphs.join(" "), /3,62 euros/);
+});
+
+test("lists known SMS and stamp costs without guessing reimbursable pages", () => {
+  const paragraph = reimbursementAmountBreakdownParagraph(297, {
+    postageCents: 152,
+    printingCents: 210,
+    printingCentsPerPage: 30,
+    printingPageCount: 7,
+    totalCents: 362,
+  });
+
+  assert.match(paragraph, /2,97 euros de SMS/);
+  assert.match(paragraph, /1,52 euros pour le timbre/);
+  assert.doesNotMatch(paragraph, /7 pages|2,10 euros|3,62 euros/);
+  assert.equal(
+    knownReimbursementTotalCents(297, {
+      postageCents: 152,
+      printingCents: 210,
+      printingCentsPerPage: 30,
+      printingPageCount: 7,
+      totalCents: 362,
+    }),
+    449,
+  );
 });
 
 test("uses natural singular and plural wording for detected SMS", () => {

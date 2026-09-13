@@ -422,6 +422,158 @@ export class DocumentLifecycleService implements OnModuleInit, OnModuleDestroy {
     return { dryRun: false, results };
   }
 
+  async purgeSelfServiceCaseAfterDownload(caseId: string, ownerId: string) {
+    const staged = await this.prisma.$transaction(async (transaction) => {
+      await lockStripeCheckoutCase(transaction, caseId);
+      await lockGeneratedPacketCase(transaction, caseId);
+
+      const administrativeCase = await transaction.administrativeCase.findFirst({
+        where: {
+          id: caseId,
+          ownerId,
+          fulfillmentMode: "SELF_SERVICE",
+          status: "GENERATED",
+        },
+        select: {
+          id: true,
+          documents: {
+            where: { document: { deletedAt: null } },
+            select: { documentId: true },
+          },
+          generatedPackets: {
+            where: { purgeRequestedAt: null },
+          },
+        },
+      });
+      if (!administrativeCase) {
+        return { skipped: true, documentIds: [], packetIds: [] };
+      }
+
+      const documentIds = uniqueSortedIds(
+        administrativeCase.documents.map(({ documentId }) => documentId),
+      );
+      for (const documentId of documentIds) {
+        await lockDocumentLifecycle(transaction, documentId);
+      }
+
+      const now = new Date();
+      await transaction.administrativeCase.update({
+        where: { id: caseId },
+        data: { selfServiceDownloadedAt: now },
+      });
+      const documents = await transaction.document.findMany({
+        where: {
+          id: { in: documentIds },
+          ownerId,
+          deletedAt: null,
+          gameRules: { none: {} },
+          caseDocuments: {
+            some: { caseId },
+            none: { caseId: { not: caseId } },
+          },
+        },
+        include: { storageRevisions: true },
+      });
+
+      for (const document of documents) {
+        const tombstoned = await transaction.document.updateMany({
+          where: { id: document.id, ownerId, deletedAt: null },
+          data: {
+            deletionRequestedAt: now,
+            deletedAt: now,
+            purgeAfter: now,
+          },
+        });
+        if (tombstoned.count !== 1) continue;
+
+        await Promise.all([
+          transaction.caseDocument.deleteMany({
+            where: { documentId: document.id },
+          }),
+          transaction.ocrResult.deleteMany({ where: { documentId: document.id } }),
+          transaction.documentAnalysis.deleteMany({
+            where: { documentId: document.id },
+          }),
+        ]);
+        await upsertStoragePurgeJob(transaction, {
+          groupType: "DOCUMENT",
+          groupId: document.id,
+          entityType: "DOCUMENT",
+          entityId: document.id,
+          storageBucket: document.storageBucket,
+          storageKey: document.storageKey,
+          checksumSha256: document.checksumSha256,
+          sizeBytes: document.sizeBytes,
+        });
+        for (const revision of document.storageRevisions) {
+          await transaction.documentStorageRevision.updateMany({
+            where: { id: revision.id, deletedAt: null },
+            data: { deletedAt: now },
+          });
+          await upsertStoragePurgeJob(transaction, {
+            groupType: "DOCUMENT",
+            groupId: document.id,
+            entityType: "DOCUMENT_REVISION",
+            entityId: revision.id,
+            storageBucket: revision.storageBucket,
+            storageKey: revision.storageKey,
+            checksumSha256: revision.checksumSha256,
+            sizeBytes: revision.sizeBytes,
+          });
+        }
+      }
+
+      // A document reused by another active case is preserved there, but its
+      // link to the downloaded case is still removed immediately.
+      await transaction.caseDocument.deleteMany({ where: { caseId } });
+
+      const packetIds: string[] = [];
+      for (const packet of administrativeCase.generatedPackets) {
+        const tombstoned = await transaction.generatedPacket.updateMany({
+          where: { id: packet.id, purgeRequestedAt: null },
+          data: { purgeRequestedAt: now },
+        });
+        if (tombstoned.count !== 1) continue;
+        await upsertStoragePurgeJob(transaction, {
+          groupType: "PACKET",
+          groupId: packet.id,
+          entityType: "GENERATED_PACKET",
+          entityId: packet.id,
+          storageBucket: packet.storageBucket,
+          storageKey: packet.storageKey,
+          checksumSha256: packet.checksumSha256,
+          sizeBytes: packet.sizeBytes,
+        });
+        packetIds.push(packet.id);
+      }
+
+      await transaction.auditLog.create({
+        data: {
+          actorId: ownerId,
+          action: "CASE_DOWNLOAD_PURGE_REQUESTED",
+          entityType: "AdministrativeCase",
+          entityId: caseId,
+          metadata: {
+            documentIds: documents.map(({ id }) => id),
+            detachedDocumentIds: documentIds,
+            packetIds,
+            requestedAt: now.toISOString(),
+          },
+        },
+      });
+      return {
+        skipped: false,
+        documentIds: documents.map(({ id }) => id),
+        packetIds,
+      };
+    });
+
+    if (!staged.skipped) {
+      await this.processStoragePurgeJobs(ownerId);
+    }
+    return staged;
+  }
+
   async runRetention(input: { actorId: string | null; dryRun: boolean }) {
     const staged = await this.prisma.$transaction(
       async (transaction) => {

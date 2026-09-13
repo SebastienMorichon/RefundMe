@@ -47,6 +47,7 @@ import { StorageWriteReservations } from "../../platform/storage-write-reservati
     EncryptedSensitiveTextProvider,
     PrismaDocumentRepository,
     StorageWriteReservations,
+    DocumentLifecycleService,
   ],
 })
 export class DocumentsModule {}

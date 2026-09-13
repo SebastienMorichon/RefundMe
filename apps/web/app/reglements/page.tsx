@@ -12,6 +12,7 @@ import {
   ReceiptText,
   RefreshCw,
   Send,
+  Tv,
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -137,6 +138,7 @@ export default function RulesPage() {
                   href={`#chaine-${channel.id}`}
                   className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-[#cfe0d7] bg-white px-4 text-sm font-bold text-[#315746] transition-colors hover:border-[#07865e] hover:bg-[#eef8f3] hover:text-[#087a55]"
                 >
+                  <ChannelLogo name={channel.name} size="small" />
                   {channel.name}
                   <span className="ml-2 text-xs font-semibold text-[#87938d]">
                     {channel.games.length}
@@ -153,16 +155,19 @@ export default function RulesPage() {
                 className="scroll-mt-7"
               >
                 <div className="mb-4 flex items-end justify-between gap-4 border-b border-[#dfe8e3] pb-3">
-                  <div>
-                    <p className="text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#07865e]">
-                      Chaîne
-                    </p>
-                    <h2
-                      id={`titre-${channel.id}`}
-                      className="mt-1 text-xl font-extrabold text-[#17211d]"
-                    >
-                      {channel.name}
-                    </h2>
+                  <div className="flex items-center gap-3">
+                    <ChannelLogo name={channel.name} size="large" />
+                    <div>
+                      <p className="text-[11px] font-extrabold uppercase tracking-[0.09em] text-[#07865e]">
+                        Chaîne
+                      </p>
+                      <h2
+                        id={`titre-${channel.id}`}
+                        className="mt-1 text-xl font-extrabold text-[#17211d]"
+                      >
+                        {channel.name}
+                      </h2>
+                    </div>
                   </div>
                   <p className="text-sm text-[#718078]">
                     {channel.games.length} jeu{channel.games.length > 1 ? "x" : ""}
@@ -269,9 +274,7 @@ function RuleCard({
         />
         <span className="flex min-w-0 flex-1 flex-col p-5 sm:p-6">
           <span className="flex items-start justify-between gap-4">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[#e8f5ee] text-[#087a55]">
-              <ReceiptText size={20} strokeWidth={1.9} />
-            </span>
+            <ChannelLogo name={channelName} size="medium" />
             <span className="rounded-full bg-[#f1f5f3] px-3 py-1 text-xs font-bold text-[#5f7168]">
               {channelName}
             </span>
@@ -409,6 +412,103 @@ function RuleCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function ChannelLogo({
+  name,
+  size,
+}: {
+  name: string;
+  size: "small" | "medium" | "large";
+}) {
+  const normalized = name
+    .toLocaleLowerCase("fr-FR")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+  const dimensions =
+    size === "large"
+      ? "h-12 w-16 text-base"
+      : size === "medium"
+        ? "h-10 w-14 text-sm"
+        : "mr-2 h-6 w-9 text-[10px]";
+  const shared = `grid shrink-0 place-items-center overflow-hidden rounded-md font-black leading-none shadow-sm ${dimensions}`;
+
+  if (/\btf1\b/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo TF1"
+        className={`${shared} bg-gradient-to-r from-[#173f96] via-[#3158a6] to-[#db2638] italic tracking-[-0.08em] text-white`}
+      >
+        TF1
+      </span>
+    );
+  }
+  if (/\bw9\b/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo W9"
+        className={`${shared} bg-gradient-to-br from-[#7855b5] via-[#d0478b] to-[#f3922c] italic text-white`}
+      >
+        W9
+      </span>
+    );
+  }
+  if (/\b6ter\b/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo 6ter"
+        className={`${shared} bg-[#74b62c] text-white`}
+      >
+        6ter
+      </span>
+    );
+  }
+  if (/\bm6\b/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo M6"
+        className={`${shared} border border-[#d9dfdc] bg-white italic tracking-[-0.08em] text-[#171a19]`}
+      >
+        M6
+      </span>
+    );
+  }
+  if (/france\s*(televisions?|tv)/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo France Télévisions"
+        className={`${shared} border border-[#d9dfdc] bg-white text-[0.66em] tracking-[-0.05em] text-[#171a19]`}
+      >
+        france<span className="text-[#087a55]">•</span>tv
+      </span>
+    );
+  }
+  if (/\bc8\b/.test(normalized)) {
+    return (
+      <span
+        role="img"
+        aria-label="Logo C8"
+        className={`${shared} bg-[#18a7c8] italic text-white`}
+      >
+        C8
+      </span>
+    );
+  }
+
+  return (
+    <span
+      role="img"
+      aria-label={`Chaîne ${name}`}
+      className={`${shared} border border-[#cfe0d7] bg-[#eef8f3] text-[#087a55]`}
+    >
+      <Tv size={size === "small" ? 13 : size === "medium" ? 17 : 20} />
+    </span>
   );
 }
 

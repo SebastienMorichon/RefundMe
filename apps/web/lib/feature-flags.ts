@@ -6,8 +6,3 @@ export const managedPostalEnabled =
 // analysis remains available as the entry point for a new reimbursement.
 export const documentsPageEnabled = false;
 export const reimbursementCreationEnabled = true;
-
-// Local development deliberately omits watermarks; production keeps the
-// existing protection until its recipient-acceptance policy is changed.
-export const sensitiveDocumentWatermarkingEnabled =
-  process.env.NODE_ENV === "production";

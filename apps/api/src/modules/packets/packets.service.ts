@@ -196,6 +196,14 @@ export class PacketsService {
     if (!administrativeCase?.gameRule) {
       throw new NotFoundException("Dossier introuvable.");
     }
+    if (
+      administrativeCase.fulfillmentMode === "SELF_SERVICE" &&
+      administrativeCase.selfServiceDownloadedAt
+    ) {
+      throw new BadRequestException(
+        "Ce dossier a déjà été téléchargé. Pour protéger vos documents sensibles, les pièces et la copie serveur ont été supprimées.",
+      );
+    }
     if (!canGeneratePacket(administrativeCase.status)) {
       throw new BadRequestException(
         "Le dossier doit etre complet avant de generer son apercu.",
@@ -993,17 +1001,12 @@ function drawReimbursementLetter(
     { font: bold, gapAfter: 20 },
   );
   drawLetterParagraph(flow, "Madame, Monsieur,", { gapAfter: 14 });
-  const postalExpenseTotalCents =
-    input.postalExpenseClaim?.calculatedCosts?.totalCents ?? null;
-  const totalRequestedCents =
-    postalExpenseTotalCents === null
-      ? input.estimatedRecoverableCents
-      : input.estimatedRecoverableCents + postalExpenseTotalCents;
+  const calculatedPostalCosts = input.postalExpenseClaim?.calculatedCosts;
   drawLetterParagraph(
     flow,
-    postalExpenseTotalCents === null
-      ? `Je vous adresse une demande de remboursement de ${formatEurosText(totalRequestedCents)} pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`
-      : `Je vous adresse une demande de remboursement pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`,
+    calculatedPostalCosts
+      ? `Je vous adresse une demande de remboursement pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`
+      : `Je vous adresse une demande de remboursement de ${formatEurosText(input.estimatedRecoverableCents)} pour les frais engagés lors de ma participation au jeu « ${shortenPdfText(input.gameName, 180)} », conformément à son règlement.`,
   );
 
   const smsParagraph = smsParticipationParagraph(input.smsCharges ?? []);
@@ -1011,13 +1014,17 @@ function drawReimbursementLetter(
 
   const amountBreakdown = reimbursementAmountBreakdownParagraph(
     input.estimatedRecoverableCents,
-    input.postalExpenseClaim?.calculatedCosts,
+    calculatedPostalCosts,
   );
   if (amountBreakdown) {
     drawLetterParagraph(flow, amountBreakdown);
+    const knownTotalCents = knownReimbursementTotalCents(
+      input.estimatedRecoverableCents,
+      calculatedPostalCosts,
+    );
     drawLetterParagraph(
       flow,
-      `Montant total demandé : ${formatEurosText(totalRequestedCents)}.`,
+      `Montant total connu demandé : ${formatEurosText(knownTotalCents)}.`,
       { font: bold },
     );
   }
@@ -1311,6 +1318,13 @@ function formatEurosText(cents: number): string {
   return `${amount} ${Math.abs(cents) > 100 ? "euros" : "euro"}`;
 }
 
+function formatPerPageRate(cents: number): string {
+  if (Number.isInteger(cents) && cents > 0 && cents < 100) {
+    return `${cents} centime${cents > 1 ? "s" : ""}`;
+  }
+  return formatEurosText(cents);
+}
+
 export function smsParticipationParagraph(
   smsCharges: ReadonlyArray<PacketSmsCharge>,
 ): string | null {
@@ -1343,17 +1357,22 @@ export function postalExpenseClaimParagraphs(
   const printing = claim.terms.printing.reimbursable;
   if (!postage && !printing) return [];
 
-  const requestedCosts =
-    postage && printing
-      ? "mes frais d'affranchissement et d'impression des pièces jointes"
-      : postage
-        ? "mes frais d'affranchissement"
-        : "mes frais d'impression des pièces jointes";
-  const paragraphs = [
-    `Je demande également le remboursement de ${requestedCosts}, comme le prévoit ${postalExpenseSource(claim.terms.sourceReference)}.`,
-  ];
+  const knownPostageIncluded =
+    (claim.calculatedCosts?.postageCents ?? 0) > 0;
+  const requestedCosts = printing
+    ? "mes frais d'impression des pièces jointes"
+    : "mes frais d'affranchissement";
+  const paragraphs = printing
+    ? [
+        `Je demande d'ajouter à ce montant connu le remboursement de ${requestedCosts}, comme le prévoit ${postalExpenseSource(claim.terms.sourceReference)}.`,
+      ]
+    : knownPostageIncluded
+      ? []
+      : [
+          `Je demande également le remboursement de ${requestedCosts}, comme le prévoit ${postalExpenseSource(claim.terms.sourceReference)}.`,
+        ];
   const rates = [
-    claim.terms.postage.reimbursable
+    claim.terms.postage.reimbursable && !knownPostageIncluded
       ? claim.terms.postage.amountCents !== null
         ? `le remboursement de l'affranchissement à hauteur de ${formatEurosText(claim.terms.postage.amountCents)}`
         : claim.terms.postage.basis
@@ -1362,7 +1381,7 @@ export function postalExpenseClaimParagraphs(
       : "",
     claim.terms.printing.reimbursable
       ? claim.terms.printing.centsPerPage !== null
-        ? `le remboursement des frais d'impression à hauteur de ${formatEurosText(claim.terms.printing.centsPerPage)} par page${claim.terms.printing.maxPages ? `, dans la limite de ${claim.terms.printing.maxPages} pages` : ""}`
+        ? `le remboursement des frais d'impression à hauteur de ${formatPerPageRate(claim.terms.printing.centsPerPage)} par page${claim.terms.printing.maxPages ? `, dans la limite de ${claim.terms.printing.maxPages} pages` : ""}`
         : claim.terms.printing.basis
           ? `le remboursement des frais d'impression selon le barème suivant : ${stripFinalPunctuation(claim.terms.printing.basis)}`
           : ""
@@ -1450,23 +1469,25 @@ async function countAttachmentPages(attachments: PacketAttachment[]) {
   return total;
 }
 
-function reimbursementAmountBreakdownParagraph(
+export function reimbursementAmountBreakdownParagraph(
   smsCents: number,
   costs: PacketPostalExpenseCosts | undefined,
 ): string {
-  if (!costs || costs.totalCents === null) return "";
+  if (!costs) return "";
   const parts = [
     `${formatEurosText(smsCents)} de SMS`,
-    costs.printingCents &&
-    costs.printingCents > 0 &&
-    costs.printingCentsPerPage !== null
-      ? `${formatEurosText(costs.printingCents)} de frais d'impression (${costs.printingPageCount} ${costs.printingPageCount > 1 ? "pages" : "page"} à ${formatEurosText(costs.printingCentsPerPage)} par page)`
-      : "",
     costs.postageCents && costs.postageCents > 0
       ? `${formatEurosText(costs.postageCents)} pour le timbre`
       : "",
   ].filter(Boolean);
   return `Cette demande comprend ${joinFrench(parts)}.`;
+}
+
+export function knownReimbursementTotalCents(
+  smsCents: number,
+  costs: PacketPostalExpenseCosts | undefined,
+): number {
+  return smsCents + Math.max(0, costs?.postageCents ?? 0);
 }
 
 function postalExpenseSource(sourceReference: string): string {

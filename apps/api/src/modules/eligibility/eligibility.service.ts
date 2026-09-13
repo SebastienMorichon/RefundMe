@@ -1498,6 +1498,7 @@ export class EligibilityService {
     id: string;
     status: string;
     fulfillmentMode: string | null;
+    selfServiceDownloadedAt: Date | null;
     estimatedRecoverableCents: number;
     serviceFeeCents: number;
     confidence: Prisma.Decimal | null;
@@ -1508,6 +1509,7 @@ export class EligibilityService {
       id: administrativeCase.id,
       status: administrativeCase.status,
       fulfillmentMode: administrativeCase.fulfillmentMode,
+      selfServiceDownloadedAt: administrativeCase.selfServiceDownloadedAt,
       estimatedRecoverableCents: administrativeCase.estimatedRecoverableCents,
       serviceFeeCents: administrativeCase.serviceFeeCents,
       confidence: administrativeCase.confidence

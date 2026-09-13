@@ -36,11 +36,11 @@ test("managed postal is disabled unless explicitly enabled", () => {
   assert.throws(() => requireManagedPostalEnabled({}), /bientôt disponible/);
 });
 
-test("sensitive document watermarking is disabled outside production", () => {
+test("sensitive document watermarking stays disabled in every environment", () => {
   assert.equal(isSensitiveDocumentWatermarkingEnabled({}), false);
   assert.equal(
     isSensitiveDocumentWatermarkingEnabled({ NODE_ENV: "production" }),
-    true,
+    false,
   );
   assert.equal(
     isSensitiveDocumentWatermarkingEnabled({
@@ -60,6 +60,13 @@ test("accepts unwatermarked sensitive case documents only when watermarking is d
       true,
     ),
     true,
+  );
+  assert.equal(
+    isUsableCaseDocument(
+      { kind: "IDENTITY_DOCUMENT", watermarked: true },
+      false,
+    ),
+    false,
   );
   assert.equal(
     isUsableCaseDocument({ kind: "ORANGE_INVOICE", watermarked: false }, true),

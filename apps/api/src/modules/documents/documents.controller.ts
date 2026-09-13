@@ -45,8 +45,6 @@ type UploadedDocumentFile = Readonly<{
 }>;
 
 const maxDocumentSizeBytes = 20 * 1024 * 1024;
-const maxDocumentsPerAccount = 50;
-const maxStoredBytesPerAccount = 100 * 1024 * 1024;
 const boundedMemoryUploadStorage = {
   _handleFile(
     _request: unknown,
@@ -109,10 +107,7 @@ export class DocumentsController {
       storage,
       watermarker,
       securityScanner,
-      {
-        maxDocuments: maxDocumentsPerAccount,
-        maxStoredBytes: maxStoredBytesPerAccount,
-      },
+      undefined,
       {
         watermarkSensitiveDocuments: isSensitiveDocumentWatermarkingEnabled(),
       },
@@ -260,6 +255,5 @@ function isSafeUploadMessage(message: string): boolean {
     "Format d'image",
     "image est animee",
     "Impossible de proteger ce document",
-    "quota de documents",
   ].some((allowedFragment) => message.includes(allowedFragment));
 }

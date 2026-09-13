@@ -8,19 +8,14 @@ import {
   Trash2,
 } from "lucide-react";
 import { PublicPage } from "../../components/public-page";
-import { sensitiveDocumentWatermarkingEnabled } from "../../lib/feature-flags";
 
 export const metadata: Metadata = { title: "Sécurité" };
 
 const safeguards = [
   [
     FileLock2,
-    sensitiveDocumentWatermarkingEnabled
-      ? "Filigranage et chiffrement"
-      : "Chiffrement des documents",
-    sensitiveDocumentWatermarkingEnabled
-      ? "Les RIB et pièces d’identité sont filigranés avant stockage. Chaque fichier est ensuite chiffré afin de limiter son exposition."
-      : "Dans la version locale, aucun filigrane n’est ajouté aux nouveaux RIB et pièces d’identité. Les anciens fichiers filigranés le restent jusqu’à leur remplacement. Chaque fichier reste chiffré.",
+    "Chiffrement des documents",
+    "Chaque fichier est chiffré dès son dépôt afin de limiter son exposition.",
   ],
   [
     KeyRound,
@@ -44,8 +39,8 @@ const safeguards = [
   ],
   [
     Trash2,
-    "Maîtrise des données",
-    "Vous pouvez retirer un document depuis votre compte. Sa suppression physique est ensuite exécutée selon la durée de grâce configurée.",
+    "Suppression après téléchargement",
+    "Dès que le téléchargement du dossier est terminé, ses pièces et sa copie serveur sont automatiquement mises en purge.",
   ],
 ];
 

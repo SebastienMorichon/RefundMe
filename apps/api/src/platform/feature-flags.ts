@@ -10,9 +10,9 @@ export function isManagedPostalEnabled(
 }
 
 export function isSensitiveDocumentWatermarkingEnabled(
-  environment: NodeJS.ProcessEnv = process.env,
+  _environment: NodeJS.ProcessEnv = process.env,
 ): boolean {
-  return environment.NODE_ENV === "production";
+  return false;
 }
 
 export function requireManagedPostalEnabled(
