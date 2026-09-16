@@ -25,6 +25,8 @@ export async function generateMetadata({
       title: guide.title,
       description: guide.description,
       url: `/guides/${guide.slug}`,
+      publishedTime: guide.publishedAt ?? "2026-09-13",
+      modifiedTime: guide.modifiedAt ?? "2026-09-13",
     },
   };
 }
@@ -40,8 +42,8 @@ export default async function GuidePage({ params }: GuidePageProps) {
     "@type": "Article",
     headline: guide.title,
     description: guide.description,
-    dateModified: "2026-09-13",
-    datePublished: "2026-09-13",
+    dateModified: guide.modifiedAt ?? "2026-09-13",
+    datePublished: guide.publishedAt ?? "2026-09-13",
     inLanguage: "fr-FR",
     mainEntityOfPage: `${origin}/guides/${guide.slug}`,
     author: { "@type": "Organization", name: "Lydoc" },
@@ -92,6 +94,54 @@ export default async function GuidePage({ params }: GuidePageProps) {
                   </div>
                 </section>
               ))}
+              {guide.sources?.length ? (
+                <section aria-labelledby="guide-sources">
+                  <h2
+                    id="guide-sources"
+                    className="text-2xl font-extrabold text-[#17211d]"
+                  >
+                    Sources consultées
+                  </h2>
+                  <p className="mt-3 text-sm text-[#526058]">
+                    Vérifiées le {guide.updatedAt}. Les conditions propres à
+                    chaque jeu restent à consulter dans son règlement.
+                  </p>
+                  <ul className="mt-4 grid gap-3 text-sm">
+                    {guide.sources.map((source) => (
+                      <li key={source.url}>
+                        <a
+                          href={source.url}
+                          className="text-[#087a55] underline underline-offset-4"
+                        >
+                          {source.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+              {guide.relatedSlugs?.length ? (
+                <nav aria-label="Guides complémentaires">
+                  <h2 className="text-2xl font-extrabold text-[#17211d]">
+                    Pour poursuivre votre démarche
+                  </h2>
+                  <ul className="mt-4 grid gap-3">
+                    {guide.relatedSlugs.map((slug) => {
+                      const related = findGuide(slug);
+                      return related ? (
+                        <li key={slug}>
+                          <a
+                            href={`/guides/${slug}`}
+                            className="text-[#087a55] underline underline-offset-4"
+                          >
+                            {related.title}
+                          </a>
+                        </li>
+                      ) : null;
+                    })}
+                  </ul>
+                </nav>
+              ) : null}
             </div>
           </div>
           <aside className="lg:sticky lg:top-28 lg:self-start">

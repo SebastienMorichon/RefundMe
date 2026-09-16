@@ -11,10 +11,88 @@ export type Guide = Readonly<{
   eyebrow: string;
   readingTime: string;
   updatedAt: string;
+  publishedAt?: string;
+  modifiedAt?: string;
+  sources?: readonly Readonly<{ title: string; url: string }>[];
+  relatedSlugs?: readonly string[];
   sections: readonly GuideSection[];
 }>;
 
 export const guides: readonly Guide[] = [
+  {
+    slug: "sms-surtaxe-qui-contacter-remboursement",
+    title: "SMS surtaxé : à qui demander un remboursement ?",
+    description:
+      "Organisateur du jeu, éditeur du service ou opérateur : identifiez le bon interlocuteur pour demander un remboursement ou contester des frais SMS+.",
+    eyebrow: "Le bon interlocuteur",
+    readingTime: "4 min",
+    updatedAt: "16 septembre 2026",
+    publishedAt: "2026-09-16",
+    modifiedAt: "2026-09-16",
+    relatedSlugs: [
+      "remboursement-sms-surtaxe-jeu-concours",
+      "trouver-sms-surtaxes-facture-mobile",
+      "justificatifs-remboursement-sms",
+    ],
+    sources: [
+      {
+        title: "Surmafacture.fr — Comprendre SMS+ et faire une réclamation",
+        url: "https://www.surmafacture.fr/sms/",
+      },
+      {
+        title: "DGCCRF — Numéros surtaxés et pièges sur Internet",
+        url: "https://www.economie.gouv.fr/dgccrf/les-fiches-pratiques/numeros-surtaxes-et-pieges-sur-internet-attention-aux-mauvaises-surprises",
+      },
+      {
+        title: "RTL et Vous — Questions sur les jeux-concours antenne",
+        url: "https://etvous.m6.fr/radio-rtl/faq/jeux-concours-antenne",
+      },
+    ],
+    sections: [
+      {
+        title: "Identifiez d’abord ce qui a été facturé",
+        paragraphs: [
+          "Une ligne SMS+ sur votre facture ne suffit pas à déterminer la procédure de remboursement. SMS+ permet notamment de payer un contenu numérique, de participer à un jeu ou de voter à la télévision ou à la radio. Commencez par retrouver le service concerné dans votre facture et votre espace client opérateur.",
+          "Notez le numéro court, le libellé, la date et le montant. Comparez-les avec vos messages conservés. Cette vérification permet de choisir entre une demande prévue par le règlement d’un jeu et une réclamation portant sur un service facturé.",
+        ],
+      },
+      {
+        title: "Pour un jeu-concours : suivez le règlement de l’organisateur",
+        paragraphs: [
+          "Si vous avez participé à un jeu, recherchez ses conditions de remboursement sur le site officiel de l’organisateur. La FAQ de RTL, par exemple, renvoie aux règlements de ses jeux Audiotel et SMS et présente une démarche de remboursement. Cet exemple ne permet pas de déduire les conditions d’un autre jeu.",
+          "Avant de préparer le courrier, relevez dans le règlement correspondant à votre participation le destinataire, le délai, les frais concernés et les justificatifs demandés. Utilisez ces indications pour constituer votre dossier. Si un point manque ou paraît ambigu, demandez une précision à l’organisateur avant l’envoi.",
+          "Lydoc aide à préparer un dossier à partir du règlement sélectionné et des informations que vous confirmez. La décision de remboursement appartient à l’organisateur : la création du dossier ne garantit pas son acceptation.",
+        ],
+      },
+      {
+        title: "Pour un service SMS+ contesté : contactez son éditeur",
+        paragraphs: [
+          "La plateforme Surmafacture.fr recommande de contacter l’éditeur pour une question sur le service acheté. Son annuaire permet de retrouver les coordonnées utiles. Si vous n’obtenez pas de réponse sous une semaine ou si celle-ci ne vous satisfait pas, elle indique que vous pouvez également saisir le service client de votre opérateur avec vos justificatifs.",
+          "Rédigez une demande factuelle : identifiez la ligne concernée, expliquez ce que vous contestez et précisez la réponse attendue. Conservez une copie datée de votre demande et des échanges pour pouvoir présenter un historique clair.",
+        ],
+      },
+      {
+        title: "En cas de SMS suspect : distinguez signalement et réclamation",
+        paragraphs: [
+          "La DGCCRF invite à la prudence face aux messages inconnus demandant de rappeler un numéro ou de cliquer sur un lien. Elle oriente notamment vers Surmafacture.fr pour identifier un service et vers le 33700 pour signaler les spams. Ne poursuivez pas un échange suspect dans l’espoir de récupérer un gain annoncé.",
+          "Signaler un problème sert à alerter. Cela ne remplace pas une demande individuelle de remboursement adressée au bon interlocuteur. Surmafacture.fr précise notamment que son signalement anonyme ne permet pas à l’éditeur de vous répondre.",
+        ],
+      },
+      {
+        title: "Votre liste de vérification avant de contacter le service",
+        paragraphs: [
+          "Préparez les éléments utiles à votre situation, sans transmettre spontanément des documents personnels sans rapport avec la demande.",
+        ],
+        bullets: [
+          "Identifiez le service ou le jeu et la période concernée.",
+          "Retrouvez les lignes facturées et les messages correspondants.",
+          "Vérifiez les coordonnées du destinataire sur une source officielle.",
+          "Pour un jeu, relisez les conditions et le délai du règlement applicable.",
+          "Gardez une copie de votre demande, des pièces transmises et de la réponse.",
+        ],
+      },
+    ],
+  },
   {
     slug: "remboursement-sms-surtaxe-jeu-concours",
     title:
