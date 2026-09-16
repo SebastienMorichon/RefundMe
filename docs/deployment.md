@@ -48,6 +48,7 @@ Si le proxy est lui-même dans Compose, rattachez-le au réseau `edge`, retirez 
 - deux noms DNS, certificats TLS et un proxy correctement durci ;
 - un domaine Resend vérifié et des adresses dédiées au support et à la sécurité ;
 - une clé Mistral et les accords de sous-traitance nécessaires à l’import automatisé des règlements ;
+- un `RULE_AUTOMATION_TOKEN` aléatoire et dédié d’au moins 32 caractères, partagé uniquement entre la veille et l’API ;
 - un stockage hors hôte versionné pour les sauvegardes chiffrées ;
 - un gestionnaire de secrets distinct du stockage des sauvegardes.
 

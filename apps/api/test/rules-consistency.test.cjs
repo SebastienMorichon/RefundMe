@@ -4,13 +4,20 @@ const test = require("node:test");
 const {
   RulesService,
   gameRuleContentFingerprint,
+  normalizeSourceUrl,
   selectRelevantRuleText,
 } = require("../dist/modules/rules/rules.service.js");
 
 test("long rule analysis keeps reimbursement passages within the provider budget", () => {
-  const filler = Array.from({ length: 250 }, (_, index) => `Bloc sans interet ${index} ${"x".repeat(300)}`).join("\n\n");
-  const reimbursement = "ARTICLE 8 REMBOURSEMENT\nJoindre la facture, un RIB et envoyer la demande a Libre Reponse 94119.";
-  const selected = selectRelevantRuleText(`${filler}\n\n${reimbursement}\n\n${filler}`);
+  const filler = Array.from(
+    { length: 250 },
+    (_, index) => `Bloc sans interet ${index} ${"x".repeat(300)}`,
+  ).join("\n\n");
+  const reimbursement =
+    "ARTICLE 8 REMBOURSEMENT\nJoindre la facture, un RIB et envoyer la demande a Libre Reponse 94119.";
+  const selected = selectRelevantRuleText(
+    `${filler}\n\n${reimbursement}\n\n${filler}`,
+  );
 
   assert.ok(selected.length <= 48_000);
   assert.match(selected, /ARTICLE 8 REMBOURSEMENT/);
@@ -262,4 +269,111 @@ test("rule extraction rechecks its source and commits derived data with its audi
     "DOCUMENT_UPDATED",
     "AUDIT:GAME_RULE_EXTRACTED",
   ]);
+});
+
+test("official rule URLs are HTTPS-only and discard tracking noise", () => {
+  assert.equal(
+    normalizeSourceUrl(
+      "https://Organisateur.example/reglement?utm_source=veille&version=2#article-8",
+    ),
+    "https://organisateur.example/reglement?version=2",
+  );
+  assert.throws(
+    () => normalizeSourceUrl("http://organisateur.example/reglement"),
+    /HTTPS publique/i,
+  );
+});
+
+test("automation imports a new URL source as a review-only rule", async () => {
+  let createInput;
+  let auditInput;
+  const created = presentableRule({
+    version: 1,
+    sourceDocumentId: null,
+    sourceDocument: null,
+    sourceUrl: "https://organisateur.example/reglement",
+  });
+  const transaction = {
+    $executeRaw: async () => 0,
+    gameRule: {
+      findUnique: async () => null,
+      create: async (input) => {
+        createInput = input;
+        return created;
+      },
+    },
+    organizer: { upsert: async () => ({ id: "organizer-1" }) },
+    auditLog: {
+      create: async (input) => {
+        auditInput = input;
+      },
+    },
+  };
+  const service = new RulesService(
+    { $transaction: async (operation) => operation(transaction) },
+    {},
+  );
+
+  const result = await service.importFromAutomation({
+    sourceUrl: "https://organisateur.example/reglement",
+    organizerName: "M6",
+    name: "Jeu A",
+    reimbursementCents: 500,
+    requiredDocuments: [],
+    constraints: { channelName: "M6" },
+  });
+
+  assert.equal(result.action, "created");
+  assert.equal(createInput.data.sourceDocumentId, null);
+  assert.equal(createInput.data.status, "NEEDS_REVIEW");
+  assert.match(createInput.data.sourceKey, /^[a-f\d]{64}$/);
+  assert.match(createInput.data.sourceFingerprint, /^[a-f\d]{64}$/);
+  assert.equal(auditInput.data.actorId, null);
+  assert.equal(auditInput.data.action, "GAME_RULE_AUTOMATION_CREATED");
+});
+
+test("automation leaves an unchanged source untouched", async () => {
+  const fingerprint = require("node:crypto")
+    .createHash("sha256")
+    .update(
+      '{"constraints":{"channelName":"M6"},"name":"Jeu A","organizerName":"M6","reimbursementCents":500,"requiredDocuments":[],"validFrom":null,"validUntil":null}',
+    )
+    .digest("hex");
+  const current = presentableRule({
+    sourceDocumentId: null,
+    sourceDocument: null,
+    sourceUrl: "https://organisateur.example/reglement",
+  });
+  const transaction = {
+    $executeRaw: async () => 0,
+    gameRule: {
+      findUnique: async () => ({
+        id: current.id,
+        version: current.version,
+        status: current.status,
+        sourceFingerprint: fingerprint,
+      }),
+      findFirst: async () => current,
+      updateMany: async () => assert.fail("unchanged import must not update"),
+    },
+    auditLog: {
+      create: async () =>
+        assert.fail("unchanged import must not audit a mutation"),
+    },
+  };
+  const service = new RulesService(
+    { $transaction: async (operation) => operation(transaction) },
+    {},
+  );
+
+  const result = await service.importFromAutomation({
+    sourceUrl: current.sourceUrl,
+    organizerName: "M6",
+    name: "Jeu A",
+    reimbursementCents: 500,
+    requiredDocuments: [],
+    constraints: { channelName: "M6" },
+  });
+
+  assert.equal(result.action, "unchanged");
 });

@@ -17,6 +17,7 @@ import { type RequiredDocumentInput, RulesService } from "./rules.service";
 
 type CreateRuleBody = Readonly<{
   sourceDocumentId?: string;
+  sourceUrl?: string;
   organizerName?: string;
   name?: string;
   reimbursementCents?: number;
@@ -65,7 +66,10 @@ export class RulesController {
     return {
       rule: await this.rules.create({
         actorId: request.user!.id,
-        sourceDocumentId: body.sourceDocumentId ?? "",
+        ...(body.sourceDocumentId?.trim()
+          ? { sourceDocumentId: body.sourceDocumentId.trim() }
+          : {}),
+        ...(body.sourceUrl?.trim() ? { sourceUrl: body.sourceUrl.trim() } : {}),
         organizerName: body.organizerName ?? "",
         name: body.name ?? "",
         reimbursementCents: body.reimbursementCents ?? -1,
@@ -87,6 +91,7 @@ export class RulesController {
       rule: await this.rules.update(ruleId, {
         actorId: request.user!.id,
         expectedVersion: parseExpectedVersion(body.expectedVersion),
+        ...(body.sourceUrl?.trim() ? { sourceUrl: body.sourceUrl.trim() } : {}),
         organizerName: body.organizerName ?? "",
         name: body.name ?? "",
         reimbursementCents: body.reimbursementCents ?? -1,

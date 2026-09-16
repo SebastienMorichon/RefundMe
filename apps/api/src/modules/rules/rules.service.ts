@@ -30,8 +30,9 @@ export type RequiredDocumentInput = Readonly<{
 }>;
 
 export type CreateGameRuleInput = Readonly<{
-  actorId: string;
-  sourceDocumentId: string;
+  actorId: string | null;
+  sourceDocumentId?: string;
+  sourceUrl?: string;
   organizerName: string;
   name: string;
   reimbursementCents: number;
@@ -49,6 +50,17 @@ export type UpdateGameRuleInput = Omit<
     actorId: string;
     expectedVersion: number;
   }>;
+
+export type ImportGameRuleInput = Readonly<{
+  sourceUrl: string;
+  organizerName: string;
+  name: string;
+  reimbursementCents: number;
+  requiredDocuments: RequiredDocumentInput[];
+  constraints: Record<string, unknown>;
+  validFrom?: Date;
+  validUntil?: Date;
+}>;
 
 @Injectable()
 export class RulesService {
@@ -150,24 +162,14 @@ export class RulesService {
         create: {
           documentId: document.id,
           provider: ocr.provider,
-          text: this.sensitiveText.encrypt(
-            ocr.text,
-            ocrTextContext(document.id),
-          ),
-          ...(ocr.confidence === undefined
-            ? {}
-            : { confidence: ocr.confidence }),
+          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
           rawJson: toJsonValue(ocr.raw),
         },
         update: {
           provider: ocr.provider,
-          text: this.sensitiveText.encrypt(
-            ocr.text,
-            ocrTextContext(document.id),
-          ),
-          ...(ocr.confidence === undefined
-            ? {}
-            : { confidence: ocr.confidence }),
+          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
+          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
           rawJson: toJsonValue(ocr.raw),
         },
       });
@@ -202,7 +204,6 @@ export class RulesService {
 
   async list() {
     const rules = await this.prisma.gameRule.findMany({
-      where: { sourceDocument: { kind: DocumentKind.GAME_RULE_PDF } },
       include: {
         organizer: true,
         sourceDocument: {
@@ -220,7 +221,6 @@ export class RulesService {
     const rules = await this.prisma.gameRule.findMany({
       where: {
         status: RuleStatus.APPROVED,
-        sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
       },
       include: { organizer: true },
       orderBy: [{ validFrom: "desc" }, { name: "asc" }],
@@ -277,7 +277,6 @@ export class RulesService {
     const rule = await this.prisma.gameRule.findFirst({
       where: {
         id: ruleId,
-        sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
       },
       include: {
         organizer: true,
@@ -302,11 +301,14 @@ export class RulesService {
     const updatedRule = await this.prisma.$transaction(async (transaction) => {
       await lockGameRule(transaction, ruleId);
       const existingRule = await transaction.gameRule.findFirst({
-        where: {
-          id: ruleId,
-          sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
+        where: { id: ruleId },
+        select: {
+          id: true,
+          status: true,
+          version: true,
+          sourceDocumentId: true,
+          sourceUrl: true,
         },
-        select: { id: true, status: true, version: true },
       });
       if (!existingRule) {
         throw new NotFoundException("Reglement introuvable.");
@@ -319,6 +321,14 @@ export class RulesService {
         update: {},
         select: { id: true },
       });
+      const sourceUrl = input.sourceUrl
+        ? normalizeSourceUrl(input.sourceUrl)
+        : existingRule.sourceUrl;
+      if (!existingRule.sourceDocumentId && !sourceUrl) {
+        throw new BadRequestException(
+          "Ajoutez un PDF ou l'URL officielle du reglement.",
+        );
+      }
       const changed = await transaction.gameRule.updateMany({
         where: {
           id: existingRule.id,
@@ -327,6 +337,8 @@ export class RulesService {
         },
         data: {
           organizerId: organizer.id,
+          sourceUrl,
+          sourceKey: sourceUrl ? sourceKey(sourceUrl) : null,
           name: input.name.trim(),
           reimbursementCents: input.reimbursementCents,
           requiredDocuments: input.requiredDocuments as Prisma.InputJsonValue,
@@ -369,20 +381,26 @@ export class RulesService {
     const organizerName = input.organizerName.trim();
     const organizerSlug = toSlug(organizerName);
     const rule = await this.prisma.$transaction(async (transaction) => {
-      await lockDocumentLifecycle(transaction, input.sourceDocumentId);
-      const sourceDocument = await transaction.document.findFirst({
-        where: {
-          id: input.sourceDocumentId,
-          kind: DocumentKind.GAME_RULE_PDF,
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-      if (!sourceDocument) {
-        throw new BadRequestException(
-          "Le PDF source du reglement est introuvable.",
-        );
+      let sourceDocument: { id: string } | null = null;
+      if (input.sourceDocumentId) {
+        await lockDocumentLifecycle(transaction, input.sourceDocumentId);
+        sourceDocument = await transaction.document.findFirst({
+          where: {
+            id: input.sourceDocumentId,
+            kind: DocumentKind.GAME_RULE_PDF,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!sourceDocument) {
+          throw new BadRequestException(
+            "Le PDF source du reglement est introuvable.",
+          );
+        }
       }
+      const sourceUrl = input.sourceUrl
+        ? normalizeSourceUrl(input.sourceUrl)
+        : null;
       const organizer = await transaction.organizer.upsert({
         where: { slug: organizerSlug },
         create: { name: organizerName, slug: organizerSlug },
@@ -392,7 +410,9 @@ export class RulesService {
       const created = await transaction.gameRule.create({
         data: {
           organizerId: organizer.id,
-          sourceDocumentId: sourceDocument.id,
+          sourceDocumentId: sourceDocument?.id ?? null,
+          sourceUrl,
+          sourceKey: sourceUrl ? sourceKey(sourceUrl) : null,
           status: RuleStatus.NEEDS_REVIEW,
           name: input.name.trim(),
           reimbursementCents: input.reimbursementCents,
@@ -415,7 +435,8 @@ export class RulesService {
           entityType: "GameRule",
           entityId: created.id,
           metadata: {
-            sourceDocumentId: sourceDocument.id,
+            sourceDocumentId: sourceDocument?.id ?? null,
+            sourceUrl,
             version: created.version,
           },
         },
@@ -424,6 +445,133 @@ export class RulesService {
     });
 
     return this.present(rule);
+  }
+
+  async importFromAutomation(input: ImportGameRuleInput) {
+    const normalizedUrl = normalizeSourceUrl(input.sourceUrl);
+    this.assertInput({
+      ...input,
+      actorId: null,
+      sourceUrl: normalizedUrl,
+    });
+    const normalizedInput = {
+      organizerName: input.organizerName.trim(),
+      name: input.name.trim(),
+      reimbursementCents: input.reimbursementCents,
+      requiredDocuments: input.requiredDocuments,
+      constraints: input.constraints,
+      validFrom: input.validFrom ?? null,
+      validUntil: input.validUntil ?? null,
+    };
+    const key = sourceKey(normalizedUrl);
+    const fingerprint = createHash("sha256")
+      .update(stableJson(normalizedInput), "utf8")
+      .digest("hex");
+
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`game-rule-source:${key}`}))`;
+      const existing = await transaction.gameRule.findUnique({
+        where: { sourceKey: key },
+        select: {
+          id: true,
+          version: true,
+          status: true,
+          sourceFingerprint: true,
+        },
+      });
+      if (existing?.sourceFingerprint === fingerprint) {
+        const unchanged = await findPresentableRule(transaction, existing.id);
+        if (!unchanged) throw new NotFoundException("Reglement introuvable.");
+        return { action: "unchanged" as const, rule: this.present(unchanged) };
+      }
+
+      const organizerSlug = toSlug(normalizedInput.organizerName);
+      const organizer = await transaction.organizer.upsert({
+        where: { slug: organizerSlug },
+        create: { name: normalizedInput.organizerName, slug: organizerSlug },
+        update: {},
+        select: { id: true },
+      });
+
+      if (existing) {
+        const changed = await transaction.gameRule.updateMany({
+          where: { id: existing.id, version: existing.version },
+          data: {
+            organizerId: organizer.id,
+            sourceUrl: normalizedUrl,
+            sourceFingerprint: fingerprint,
+            status: RuleStatus.NEEDS_REVIEW,
+            version: { increment: 1 },
+            name: normalizedInput.name,
+            reimbursementCents: normalizedInput.reimbursementCents,
+            requiredDocuments:
+              normalizedInput.requiredDocuments as Prisma.InputJsonValue,
+            constraintsJson:
+              normalizedInput.constraints as Prisma.InputJsonValue,
+            validFrom: normalizedInput.validFrom,
+            validUntil: normalizedInput.validUntil,
+            reviewedAt: null,
+            reviewedById: null,
+          },
+        });
+        if (changed.count !== 1) throw ruleVersionConflict();
+        const updated = await findPresentableRule(transaction, existing.id);
+        if (!updated) throw new NotFoundException("Reglement introuvable.");
+        await transaction.auditLog.create({
+          data: {
+            actorId: null,
+            action: "GAME_RULE_AUTOMATION_UPDATED",
+            entityType: "GameRule",
+            entityId: updated.id,
+            metadata: {
+              sourceUrl: normalizedUrl,
+              previousVersion: existing.version,
+              version: updated.version,
+              previousStatus: existing.status,
+              status: updated.status,
+            },
+          },
+        });
+        return { action: "updated" as const, rule: this.present(updated) };
+      }
+
+      const created = await transaction.gameRule.create({
+        data: {
+          organizerId: organizer.id,
+          sourceDocumentId: null,
+          sourceUrl: normalizedUrl,
+          sourceKey: key,
+          sourceFingerprint: fingerprint,
+          status: RuleStatus.NEEDS_REVIEW,
+          name: normalizedInput.name,
+          reimbursementCents: normalizedInput.reimbursementCents,
+          requiredDocuments:
+            normalizedInput.requiredDocuments as Prisma.InputJsonValue,
+          constraintsJson: normalizedInput.constraints as Prisma.InputJsonValue,
+          validFrom: normalizedInput.validFrom,
+          validUntil: normalizedInput.validUntil,
+        },
+        include: {
+          organizer: true,
+          sourceDocument: {
+            select: { id: true, originalName: true, uploadedAt: true },
+          },
+        },
+      });
+      await transaction.auditLog.create({
+        data: {
+          actorId: null,
+          action: "GAME_RULE_AUTOMATION_CREATED",
+          entityType: "GameRule",
+          entityId: created.id,
+          metadata: {
+            sourceUrl: normalizedUrl,
+            version: created.version,
+          },
+        },
+      });
+      return { action: "created" as const, rule: this.present(created) };
+    });
   }
 
   async approve(ruleId: string, actorId: string, expectedVersion: number) {
@@ -487,10 +635,7 @@ export class RulesService {
     await this.prisma.$transaction(async (transaction) => {
       await lockGameRule(transaction, ruleId);
       const rule = await transaction.gameRule.findFirst({
-        where: {
-          id: ruleId,
-          sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
-        },
+        where: { id: ruleId },
         select: {
           id: true,
           name: true,
@@ -533,6 +678,12 @@ export class RulesService {
   }
 
   private assertInput(input: CreateGameRuleInput): void {
+    if (!input.sourceDocumentId && !input.sourceUrl) {
+      throw new BadRequestException(
+        "Ajoutez un PDF ou l'URL officielle du reglement.",
+      );
+    }
+    if (input.sourceUrl) normalizeSourceUrl(input.sourceUrl);
     if (!input.organizerName.trim() || !input.name.trim()) {
       throw new BadRequestException(
         "Organisateur et nom du reglement sont requis.",
@@ -631,14 +782,24 @@ export class RulesService {
         create: {
           documentId: document.id,
           provider: ocr.provider,
-          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
-          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          text: this.sensitiveText.encrypt(
+            ocr.text,
+            ocrTextContext(document.id),
+          ),
+          ...(ocr.confidence === undefined
+            ? {}
+            : { confidence: ocr.confidence }),
           rawJson: toJsonValue(ocr.raw),
         },
         update: {
           provider: ocr.provider,
-          text: this.sensitiveText.encrypt(ocr.text, ocrTextContext(document.id)),
-          ...(ocr.confidence === undefined ? {} : { confidence: ocr.confidence }),
+          text: this.sensitiveText.encrypt(
+            ocr.text,
+            ocrTextContext(document.id),
+          ),
+          ...(ocr.confidence === undefined
+            ? {}
+            : { confidence: ocr.confidence }),
           rawJson: toJsonValue(ocr.raw),
         },
       });
@@ -799,8 +960,13 @@ N'invente aucune information. Ne deduis jamais une adresse, une date ou une piec
     validFrom: Date | null;
     validUntil: Date | null;
     reviewedAt: Date | null;
+    sourceUrl: string | null;
     organizer: { id: string; name: string };
-    sourceDocument: { id: string; originalName: string; uploadedAt: Date };
+    sourceDocument: {
+      id: string;
+      originalName: string;
+      uploadedAt: Date;
+    } | null;
   }) {
     return {
       id: rule.id,
@@ -814,6 +980,7 @@ N'invente aucune information. Ne deduis jamais une adresse, une date ou une piec
       validFrom: rule.validFrom,
       validUntil: rule.validUntil,
       reviewedAt: rule.reviewedAt,
+      sourceUrl: rule.sourceUrl,
       sourceDocument: rule.sourceDocument,
     };
   }
@@ -824,10 +991,7 @@ async function findPresentableRule(
   ruleId: string,
 ) {
   return transaction.gameRule.findFirst({
-    where: {
-      id: ruleId,
-      sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
-    },
+    where: { id: ruleId },
     include: {
       organizer: true,
       sourceDocument: {
@@ -855,7 +1019,8 @@ function ruleVersionConflict(): ConflictException {
 
 export function gameRuleContentFingerprint(rule: {
   organizerId: string;
-  sourceDocumentId: string;
+  sourceDocumentId: string | null;
+  sourceUrl?: string | null;
   name: string;
   version: number;
   reimbursementCents: number;
@@ -869,6 +1034,7 @@ export function gameRuleContentFingerprint(rule: {
       stableJson({
         organizerId: rule.organizerId,
         sourceDocumentId: rule.sourceDocumentId,
+        sourceUrl: rule.sourceUrl ?? null,
         name: rule.name,
         version: rule.version,
         reimbursementCents: rule.reimbursementCents,
@@ -893,6 +1059,39 @@ function stableJson(value: unknown): string {
       .join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
+}
+
+export function normalizeSourceUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw new BadRequestException(
+      "L'URL officielle du reglement est invalide.",
+    );
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    value.length > 2_048
+  ) {
+    throw new BadRequestException(
+      "L'URL officielle doit etre une adresse HTTPS publique.",
+    );
+  }
+  url.hash = "";
+  for (const parameter of [...url.searchParams.keys()]) {
+    if (/^(utm_|fbclid$|gclid$)/i.test(parameter)) {
+      url.searchParams.delete(parameter);
+    }
+  }
+  url.hostname = url.hostname.toLowerCase();
+  return url.toString();
+}
+
+function sourceKey(sourceUrl: string): string {
+  return createHash("sha256").update(sourceUrl, "utf8").digest("hex");
 }
 
 function ocrTextContext(documentId: string): string {

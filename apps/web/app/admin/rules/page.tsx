@@ -16,7 +16,8 @@ type Rule = {
   constraints: Record<string, unknown>;
   validFrom: string | null;
   validUntil: string | null;
-  sourceDocument: { id: string; originalName: string; uploadedAt: string };
+  sourceUrl: string | null;
+  sourceDocument: { id: string; originalName: string; uploadedAt: string } | null;
 };
 
 type SessionUser = { id: string; email: string; role: string };
@@ -63,6 +64,7 @@ export default function AdminRulesPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [requiredDocuments, setRequiredDocuments] = useState<RequiredDocument[]>([]);
   const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
   const [organizerName, setOrganizerName] = useState("");
   const [ruleName, setRuleName] = useState("");
   const [reimbursementEuros, setReimbursementEuros] = useState("");
@@ -204,8 +206,8 @@ export default function AdminRulesPage() {
     setIsBusy(true);
 
     try {
-      if (!sourceDocumentId) {
-        throw new Error("Importez un PDF. Son analyse demarre automatiquement.");
+      if (!sourceDocumentId && !sourceUrl.trim()) {
+        throw new Error("Importez un PDF ou indiquez l'URL officielle du reglement.");
       }
       const editingRule = editingRuleId
         ? rules.find((rule) => rule.id === editingRuleId)
@@ -241,6 +243,7 @@ export default function AdminRulesPage() {
         body: JSON.stringify({
           ...(editingRule ? { expectedVersion: editingRule.version } : {}),
           sourceDocumentId,
+          sourceUrl: sourceUrl.trim() || undefined,
           organizerName,
           name: ruleName,
           reimbursementCents: Math.round(reimbursement * 100),
@@ -276,6 +279,7 @@ export default function AdminRulesPage() {
       form.reset();
       setRequiredDocuments([]);
       setSourceDocumentId(null);
+      setSourceUrl("");
       setOrganizerName("");
       setRuleName("");
       setReimbursementEuros("");
@@ -321,6 +325,10 @@ export default function AdminRulesPage() {
   }
 
   async function reanalyzeRule(rule: Rule) {
+    if (!rule.sourceDocument) {
+      setMessage("Ce reglement provient d'une URL et ne possede pas de PDF a relire.");
+      return;
+    }
     setIsBusy(true);
     setMessage("Nouvelle lecture du règlement par Mistral...");
     try {
@@ -373,6 +381,7 @@ export default function AdminRulesPage() {
       if (editingRuleId === rule.id) {
         setRequiredDocuments([]);
         setSourceDocumentId(null);
+        setSourceUrl("");
         setOrganizerName("");
         setRuleName("");
         setReimbursementEuros("");
@@ -396,7 +405,8 @@ export default function AdminRulesPage() {
 
   function editRule(rule: Rule) {
     setEditingRuleId(rule.id);
-    setSourceDocumentId(rule.sourceDocument.id);
+    setSourceDocumentId(rule.sourceDocument?.id ?? null);
+    setSourceUrl(rule.sourceUrl ?? "");
     setOrganizerName(rule.organizer.name);
     setRuleName(rule.name);
     setReimbursementEuros((rule.reimbursementCents / 100).toFixed(2));
@@ -412,6 +422,7 @@ export default function AdminRulesPage() {
 
   function hydrateCandidate(candidate: RuleCandidate) {
     setSourceDocumentId(candidate.sourceDocumentId);
+    setSourceUrl("");
     setOrganizerName(candidate.organizerName);
     setRuleName(candidate.name);
     setReimbursementEuros((candidate.reimbursementCents / 100).toFixed(2));
@@ -469,6 +480,11 @@ export default function AdminRulesPage() {
                 PDF source
                 <input name="source" type="file" accept="application/pdf" disabled={editingRuleId !== null || isBusy} onChange={(event) => void analyzeAndCreateRule(event.target.files?.[0] ?? null)} className="field font-normal file:mr-3 file:rounded-md file:border-0 file:bg-[#e4f3eb] file:px-3 file:py-1 file:text-xs file:font-extrabold file:text-[#087a55]" />
                 <span className="text-xs font-normal text-[#66736d]">L'analyse OCR et la creation de la fiche demarrent automatiquement.</span>
+              </label>
+              <label className="mt-4 grid gap-2 text-sm font-semibold">
+                URL officielle du règlement
+                <input name="sourceUrl" type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} disabled={Boolean(sourceDocumentId) || isBusy} className="field font-normal" placeholder="https://organisateur.fr/reglement" />
+                <span className="text-xs font-normal text-[#66736d]">Utilisez cette option lorsque la source officielle est une page web et non un PDF.</span>
               </label>
               <label className="mt-4 grid gap-2 text-sm font-semibold">
                 Organisateur
@@ -561,7 +577,7 @@ export default function AdminRulesPage() {
                 <label className="grid gap-2 text-sm font-semibold">Frais exclus<textarea value={excludedCostsText} onChange={(event) => setExcludedCostsText(event.target.value)} rows={2} className="field font-normal" placeholder="Une exclusion par ligne" /></label>
                 <label className="grid gap-2 text-sm font-semibold">Mentions a inclure dans le courrier<textarea value={letterMentionsText} onChange={(event) => setLetterMentionsText(event.target.value)} rows={3} className="field font-normal" placeholder="Une mention par ligne" /></label>
               </fieldset>
-              {sourceDocumentId ? <div className="mt-5"><Button disabled={isBusy}>{editingRuleId ? "Enregistrer les modifications" : "Creer pour relecture"}</Button></div> : null}
+              {sourceDocumentId || sourceUrl.trim() ? <div className="mt-5"><Button disabled={isBusy}>{editingRuleId ? "Enregistrer les modifications" : "Creer pour relecture"}</Button></div> : null}
             </form>
 
             <section className="surface p-5 sm:p-6">
@@ -578,14 +594,14 @@ export default function AdminRulesPage() {
                         {rule.status === "APPROVED" ? "Approuve" : "A relire"}
                       </span>
                     </div>
-                    <p className="mt-3 text-sm text-[#52607a]">Source: {rule.sourceDocument.originalName}</p>
+                    <p className="mt-3 text-sm text-[#52607a]">Source: {rule.sourceDocument ? rule.sourceDocument.originalName : rule.sourceUrl ? <a href={rule.sourceUrl} target="_blank" rel="noreferrer" className="font-semibold text-[#087a55] underline">ouvrir le règlement officiel</a> : "non renseignée"}</p>
                     {readString(rule.constraints.gameDate) ? <p className="mt-2 text-sm text-[#52607a]">Date du jeu: {readString(rule.constraints.gameDate)}</p> : null}
                     {formatConditions(rule.constraints) ? <p className="mt-2 whitespace-pre-line text-sm text-[#52607a]">{formatConditions(rule.constraints)}</p> : null}
                     {readString(rule.constraints.reimbursementDeadline) ? <p className="mt-2 text-sm text-[#52607a]">Echeance: {readString(rule.constraints.reimbursementDeadline)}</p> : null}
                     {readString(rule.constraints.reimbursementRecipient) || readString(rule.constraints.reimbursementAddress) ? <p className="mt-2 whitespace-pre-line text-sm text-[#52607a]">Envoi: {[readString(rule.constraints.reimbursementRecipient), readString(rule.constraints.reimbursementAddress)].filter(Boolean).join("\n")}</p> : null}
                     {formatPostalExpenseSummary(rule.constraints) ? <p className="mt-2 text-sm text-[#2f6b53]">Frais annexes: {formatPostalExpenseSummary(rule.constraints)}</p> : null}
                     <div className="mt-4 flex flex-wrap gap-3">
-                      <Button type="button" variant="secondary" disabled={isBusy} onClick={() => reanalyzeRule(rule)}>Relire avec l'IA</Button>
+                      {rule.sourceDocument ? <Button type="button" variant="secondary" disabled={isBusy} onClick={() => reanalyzeRule(rule)}>Relire avec l'IA</Button> : null}
                       <Button type="button" variant="secondary" disabled={isBusy} onClick={() => editRule(rule)}>Modifier</Button>
                       {rule.status === "NEEDS_REVIEW" ? (
                         <Button type="button" disabled={isBusy} onClick={() => approveRule(rule)}>Approuver</Button>
@@ -691,7 +707,9 @@ function readRule(value: unknown): Rule | null {
   if (!value || typeof value !== "object") return null;
   const rule = value as Record<string, unknown>;
   const organizer = rule.organizer as Record<string, unknown> | undefined;
-  const sourceDocument = rule.sourceDocument as Record<string, unknown> | undefined;
+  const sourceDocument = rule.sourceDocument && typeof rule.sourceDocument === "object"
+    ? rule.sourceDocument as Record<string, unknown>
+    : null;
 
   if (
     typeof rule.id !== "string" ||
@@ -707,10 +725,11 @@ function readRule(value: unknown): Rule | null {
     !organizer ||
     typeof organizer.id !== "string" ||
     typeof organizer.name !== "string" ||
-    !sourceDocument ||
-    typeof sourceDocument.id !== "string" ||
-    typeof sourceDocument.originalName !== "string" ||
-    typeof sourceDocument.uploadedAt !== "string"
+    (sourceDocument !== null &&
+      (typeof sourceDocument.id !== "string" ||
+        typeof sourceDocument.originalName !== "string" ||
+        typeof sourceDocument.uploadedAt !== "string")) ||
+    (typeof rule.sourceUrl !== "string" && sourceDocument === null)
   ) {
     return null;
   }
@@ -726,11 +745,14 @@ function readRule(value: unknown): Rule | null {
     constraints: rule.constraints as Record<string, unknown>,
     validFrom: typeof rule.validFrom === "string" ? rule.validFrom : null,
     validUntil: typeof rule.validUntil === "string" ? rule.validUntil : null,
-    sourceDocument: {
-      id: sourceDocument.id,
-      originalName: sourceDocument.originalName,
-      uploadedAt: sourceDocument.uploadedAt,
-    },
+    sourceUrl: typeof rule.sourceUrl === "string" ? rule.sourceUrl : null,
+    sourceDocument: sourceDocument
+      ? {
+          id: sourceDocument.id as string,
+          originalName: sourceDocument.originalName as string,
+          uploadedAt: sourceDocument.uploadedAt as string,
+        }
+      : null,
   };
 }
 

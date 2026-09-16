@@ -18,6 +18,7 @@ const maximumRateLimitPruneScan = 128;
 const defaultGeneralRateLimitPerMinute = 120;
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 const csrfExemptPaths = new Set([
+  "/automation/rules",
   "/payments/sumup/webhook",
   "/shipping/service-postal/webhook",
 ]);
@@ -370,6 +371,7 @@ export function isIpRateLimitedPath(path: string): boolean {
     path === "/auth/account/delete" ||
     path === "/contact" ||
     path === "/documents" ||
+    path === "/automation/rules" ||
     path.startsWith("/documents/") ||
     isPacketDownloadPath(path)
   );

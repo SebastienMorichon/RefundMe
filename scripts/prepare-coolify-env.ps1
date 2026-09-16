@@ -47,6 +47,7 @@ $identityOutboxSecret = New-HexSecret 48
 $mfaSecret = New-HexSecret 48
 $documentSecret = New-HexSecret 48
 $backupSecret = New-HexSecret 48
+$ruleAutomationToken = New-HexSecret 48
 
 $environment = @"
 LYDOC_COMPOSE_PROJECT_NAME=lydoc
@@ -101,6 +102,7 @@ BACKUP_ENCRYPTION_SECRET=$backupSecret
 BACKUP_ENCRYPTION_KEY_ID=backups-2026-09
 BACKUP_ENCRYPTION_PREVIOUS_KEYS={}
 MISTRAL_API_KEY=$mistralApiKey
+RULE_AUTOMATION_TOKEN=$ruleAutomationToken
 MANAGED_POSTAL_ENABLED=false
 NEXT_PUBLIC_MANAGED_POSTAL_ENABLED=false
 NEXT_PUBLIC_DOCUMENTS_PAGE_ENABLED=false

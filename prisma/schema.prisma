@@ -339,7 +339,10 @@ model Organizer {
 model GameRule {
   id                 String     @id @default(cuid())
   organizerId        String
-  sourceDocumentId   String
+  sourceDocumentId   String?
+  sourceUrl          String?    @db.VarChar(2048)
+  sourceKey          String?    @unique @db.Char(64)
+  sourceFingerprint  String?    @db.Char(64)
   status             RuleStatus @default(NEEDS_REVIEW)
   name               String
   version            Int        @default(1)
@@ -354,7 +357,7 @@ model GameRule {
   updatedAt          DateTime   @updatedAt
 
   organizer      Organizer            @relation(fields: [organizerId], references: [id])
-  sourceDocument Document             @relation("RuleSourceDocument", fields: [sourceDocumentId], references: [id])
+  sourceDocument Document?            @relation("RuleSourceDocument", fields: [sourceDocumentId], references: [id])
   cases          AdministrativeCase[]
 }
 

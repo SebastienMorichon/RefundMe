@@ -65,6 +65,8 @@ const validProductionEnvironment = Object.freeze({
   ACCOUNT_ERASURE_PURGE_GRACE_DAYS: "7",
   ACCOUNT_LEGAL_RECORD_RETENTION_DAYS: "3650",
   MISTRAL_API_KEY: "mistral-production-test-key",
+  RULE_AUTOMATION_TOKEN:
+    "rule-automation-token-independent-and-longer-than-thirty-two",
   AI_DAILY_ACCOUNT_CALL_LIMIT: "10",
   MISTRAL_DAILY_CALL_LIMIT: "1000",
   MISTRAL_MAX_CONCURRENT_REQUESTS: "2",

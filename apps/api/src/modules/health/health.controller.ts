@@ -138,8 +138,13 @@ export class HealthController {
           AND: [
             { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
             { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+            {
+              OR: [
+                { sourceDocumentId: null },
+                { sourceDocument: { deletedAt: null } },
+              ],
+            },
           ],
-          sourceDocument: { deletedAt: null },
         },
       });
       if (approvedRules < 1) {
@@ -276,6 +281,7 @@ export class HealthController {
     );
     requireIntegerRange(invalid, "IDENTITY_EMAIL_OUTBOX_MAX_ATTEMPTS", 1, 20);
     requireConfigured(invalid, "MISTRAL_API_KEY", { minimumLength: 12 });
+    requireConfigured(invalid, "RULE_AUTOMATION_TOKEN", { minimumLength: 32 });
     requireConfigured(invalid, "RESEND_API_KEY", { prefix: "re_" });
     requireConfigured(invalid, "RESEND_FROM_EMAIL");
     requireEmail(invalid, "CONTACT_TO_EMAIL");

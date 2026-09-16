@@ -99,7 +99,6 @@ export class EligibilityService {
       where: {
         id: gameRuleId,
         status: RuleStatus.APPROVED,
-        sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
       },
       include: { organizer: true },
     });
@@ -160,7 +159,6 @@ export class EligibilityService {
           id: selectedRule.id,
           status: RuleStatus.APPROVED,
           version: selectedRule.version,
-          sourceDocument: { kind: DocumentKind.GAME_RULE_PDF },
         },
         select: { id: true },
       });

@@ -351,6 +351,7 @@ Require-IntegerRange $Configuration "IDENTITY_EMAIL_OUTBOX_BATCH_SIZE" 1 50 $Inv
 Require-IntegerRange $Configuration "IDENTITY_EMAIL_OUTBOX_LEASE_SECONDS" 30 600 $Invalid
 Require-IntegerRange $Configuration "IDENTITY_EMAIL_OUTBOX_MAX_ATTEMPTS" 1 20 $Invalid
 Require-Secret $Configuration "MISTRAL_API_KEY" 12 $Invalid
+Require-Secret $Configuration "RULE_AUTOMATION_TOKEN" 32 $Invalid
 Require-Secret $Configuration "RESEND_API_KEY" 8 $Invalid
 if (-not ([string] $Configuration["RESEND_API_KEY"]).StartsWith("re_", [System.StringComparison]::Ordinal)) {
   $Invalid.Add("RESEND_API_KEY")
