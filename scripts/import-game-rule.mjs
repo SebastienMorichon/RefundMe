@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 loadEnvironment();
 
 const payload = readPayload(process.argv.slice(2));
-const apiUrl = requiredEnvironment("API_URL").replace(/\/+$/, "");
+const apiUrl = (
+  process.env.RULE_AUTOMATION_API_URL?.trim() || requiredEnvironment("API_URL")
+).replace(/\/+$/, "");
 const token = requiredEnvironment("RULE_AUTOMATION_TOKEN");
 
 const response = await fetch(`${apiUrl}/automation/rules`, {

@@ -47,3 +47,7 @@ node scripts/import-game-rule.mjs --file chemin/vers/reglement.json
 
 Le client ne journalise jamais le jeton. Sa sortie contient seulement l'action,
 l'identifiant de la fiche et son statut.
+
+La veille locale peut cibler la production avec
+`RULE_AUTOMATION_API_URL=https://api.lydoc.fr` sans remplacer l'`API_URL`
+utilisée par le développement local.
