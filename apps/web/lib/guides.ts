@@ -94,6 +94,79 @@ export const guides: readonly Guide[] = [
     ],
   },
   {
+    slug: "remboursement-sms-jeu-concours-non-recu",
+    title: "Remboursement de SMS de jeu-concours non reçu : comment relancer ?",
+    description:
+      "Vérifiez le délai du règlement, rassemblez la preuve de votre première demande et contactez le bon service si le remboursement de vos SMS tarde.",
+    eyebrow: "Suivre sa demande",
+    readingTime: "4 min",
+    updatedAt: "23 septembre 2026",
+    publishedAt: "2026-09-23",
+    modifiedAt: "2026-09-23",
+    relatedSlugs: [
+      "delai-demande-remboursement-jeu-concours",
+      "justificatifs-remboursement-sms",
+      "sms-surtaxe-qui-contacter-remboursement",
+    ],
+    sources: [
+      {
+        title: "M6+ et Vous — Questions sur les jeux-concours Audiotel et SMS",
+        url: "https://etvous.m6.fr/info/jeux-concours-antenne",
+      },
+      {
+        title: "DGCCRF — Comment régler un litige de la consommation ?",
+        url: "https://www.economie.gouv.fr/dgccrf/les-fiches-pratiques/comment-regler-un-litige-de-la-consommation",
+      },
+      {
+        title: "Surmafacture.fr — Que faire en cas de problème avec un service SMS+ ?",
+        url: "https://www.surmafacture.fr/sms/",
+      },
+    ],
+    sections: [
+      {
+        title: "Vérifiez d’abord le délai du règlement applicable",
+        paragraphs: [
+          "Un remboursement qui n’apparaît pas encore sur votre compte n’est pas nécessairement refusé. Retrouvez le règlement du jeu et de la période auxquels vous avez participé. Vérifiez le délai annoncé pour traiter ou verser le remboursement et le point de départ prévu. Ne reprenez pas le délai d’une autre émission ou d’un autre jeu.",
+          "La page d’aide du groupe M6, par exemple, invite les participants à le contacter lorsque le délai indiqué dans le règlement de leur jeu est écoulé. Cette consigne concerne ses propres jeux : pour une autre participation, fiez-vous au règlement et au service officiel de l’organisateur concerné.",
+        ],
+      },
+      {
+        title: "Rassemblez les éléments de votre première demande",
+        paragraphs: [
+          "Avant de relancer, reprenez le dossier envoyé et vérifiez ce qu’il contenait réellement. Gardez la facture détaillée où figurent les participations concernées, la copie de votre demande, sa date et, si vous en disposez, la preuve d’envoi ou de réception. Vérifiez aussi si le règlement demandait une pièce ou une présentation particulière.",
+          "Ces éléments permettent d’expliquer votre situation sans recommencer une demande à l’aveugle. Si une pièce manque, demandez au service chargé du jeu comment compléter le dossier et vérifiez si le règlement prévoit encore cette possibilité. Ne renvoyez pas spontanément des documents personnels sans lien avec la demande.",
+        ],
+      },
+      {
+        title: "Adressez une relance précise à l’organisateur",
+        paragraphs: [
+          "Utilisez le moyen de contact indiqué par le règlement ou sur le site officiel de l’organisateur. Précisez le nom du jeu, la période de participation, la date de votre premier envoi, les SMS concernés et le montant demandé. Demandez si le dossier a été reçu, s’il est complet et quelle suite lui sera donnée. Conservez une copie de la relance et de la réponse.",
+          "Dans sa propre procédure, M6 demande notamment les coordonnées figurant sur la facture et la date d’envoi de la facture détaillée lors d’une relance après expiration du délai du règlement. Cet exemple aide à préparer un message factuel, sans remplacer les conditions de votre jeu.",
+        ],
+      },
+      {
+        title: "En cas de refus ou d’absence de réponse",
+        paragraphs: [
+          "Si l’organisateur refuse le remboursement, demandez le motif par écrit et comparez-le au règlement correspondant à votre participation et aux pièces que vous avez envoyées. Si le désaccord persiste avec un professionnel, la DGCCRF recommande de chercher d’abord une solution amiable et de garder la preuve de la réclamation. Selon la nature du litige, SignalConso ou le médiateur de la consommation désigné par ce professionnel peuvent ensuite être des pistes à examiner. Vérifiez les conditions de recevabilité avant de saisir un médiateur.",
+          "Une contestation de SMS+ facturé pour un autre service suit un parcours différent : Surmafacture.fr oriente d’abord vers l’éditeur du service, puis vers le service client de l’opérateur si nécessaire. Un signalement de fraude sert à alerter ; il ne tient pas lieu de réclamation individuelle et ne déclenche pas à lui seul un remboursement.",
+        ],
+      },
+      {
+        title: "Votre relance en cinq points",
+        paragraphs: [
+          "Un message court et vérifiable facilite l’identification de votre dossier. N’annoncez pas qu’un remboursement est acquis avant que l’organisateur ait confirmé sa décision.",
+        ],
+        bullets: [
+          "Rappelez le jeu exact et la période de participation.",
+          "Indiquez la date et le mode d’envoi de la première demande.",
+          "Référencez les lignes de facture et les pièces déjà transmises.",
+          "Posez une question claire sur la réception, les pièces manquantes ou la décision.",
+          "Conservez la réponse et vérifiez toute nouvelle instruction dans le règlement.",
+        ],
+      },
+    ],
+  },
+  {
     slug: "remboursement-sms-surtaxe-jeu-concours",
     title:
       "Comment demander le remboursement d’un SMS surtaxé de jeu-concours ?",
