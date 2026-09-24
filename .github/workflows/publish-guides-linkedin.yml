@@ -1,0 +1,40 @@
+name: Publish new Lydoc guides on LinkedIn
+
+on:
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Vérifier sans publier"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-guides-linkedin
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || vars.LINKEDIN_AUTOPUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check guide publisher
+        run: node --test scripts/test-publish-new-guides-to-buffer.mjs
+      - name: Check Buffer credential
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+        run: test -n "$BUFFER_API_KEY"
+      - name: Queue verified new guides
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          BUFFER_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: node scripts/publish-new-guides-to-buffer.mjs
