@@ -5,8 +5,25 @@ const production = process.env.NODE_ENV === "production";
 const apiOrigin = readOrigin(
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001",
 );
-const scriptSources = ["'self'", "'unsafe-inline'"];
-const connectSources = ["'self'", apiOrigin];
+const scriptSources = [
+  "'self'",
+  "'unsafe-inline'",
+  "https://www.googletagmanager.com",
+];
+const connectSources = [
+  "'self'",
+  apiOrigin,
+  "https://www.googletagmanager.com",
+  "https://*.google-analytics.com",
+  "https://www.google.com",
+];
+const imageSources = [
+  "'self'",
+  "data:",
+  "blob:",
+  "https://www.googletagmanager.com",
+  "https://*.google-analytics.com",
+];
 if (!production) {
   scriptSources.push("'unsafe-eval'");
   connectSources.push("ws:", "wss:");
@@ -19,7 +36,7 @@ const contentSecurityPolicy = [
   "font-src 'self' data:",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "img-src 'self' data: blob:",
+  `img-src ${imageSources.join(" ")}`,
   "media-src 'self'",
   "object-src 'none'",
   `script-src ${scriptSources.join(" ")}`,
