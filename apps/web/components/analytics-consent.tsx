@@ -106,6 +106,8 @@ export function AnalyticsConsent() {
       loaded.current = true;
       window.dataLayer = window.dataLayer || [];
       window.gtag = function gtag() {
+        // The Google tag recognizes the Arguments object as a command.
+        // eslint-disable-next-line prefer-rest-params
         window.dataLayer?.push(arguments);
       };
       window.gtag("js", new Date());
