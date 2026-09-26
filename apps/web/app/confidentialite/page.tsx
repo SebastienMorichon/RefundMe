@@ -116,8 +116,10 @@ export default function PrivacyPage() {
           <p>
             Les catégories de prestataires sont : OVHcloud pour l’hébergement de
             production sur un serveur VPS-2 situé en France, Mistral AI pour les
-            règlements de jeux importés par l’administration, et le prestataire
-            d’envoi d’e-mails transactionnels configuré pour le service.
+            règlements de jeux importés par l’administration, le prestataire
+            d’envoi d’e-mails transactionnels configuré pour le service et,
+            uniquement après consentement, Google pour la mesure d’audience des
+            pages publiques.
           </p>
           <p>
             SumUp et le prestataire postal ne reçoivent actuellement aucune
@@ -134,10 +136,10 @@ export default function PrivacyPage() {
       content: (
         <p>
           Le serveur VPS-2 utilisé pour Lydoc et ses données applicatives sont
-          hébergés par OVHcloud en France. Si un autre prestataire implique un
-          transfert hors de l’Espace économique européen, sa base juridique et
-          les garanties applicables sont vérifiées et indiquées avant son
-          activation.
+          hébergés par OVHcloud en France. Si vous acceptez la mesure d’audience,
+          des données de navigation sur les pages publiques sont transmises à
+          Google. Ce traitement peut impliquer un transfert hors de l’Espace
+          économique européen, selon les conditions de Google.
         </p>
       ),
     },
@@ -190,10 +192,10 @@ export default function PrivacyPage() {
       title: "10. Cookies et mesure d’audience",
       content: (
         <p>
-          La version actuelle utilise uniquement les mécanismes nécessaires à la
-          session et à la sécurité. Aucun outil d’audience non essentiel n’est
-          actif. Toute évolution sera décrite dans la politique relative aux
-          cookies et soumise au consentement lorsque celui-ci est requis.
+          La session et la sécurité utilisent des mécanismes nécessaires au
+          service. Google Analytics 4 n’est chargé que si vous acceptez la mesure
+          d’audience. Cette mesure concerne les pages publiques uniquement et
+          peut être refusée ou retirée depuis la politique relative aux cookies.
         </p>
       ),
     },
@@ -216,7 +218,7 @@ export default function PrivacyPage() {
       title="Politique de confidentialité"
       description="Ce que Lydoc utilise, pourquoi et les protections appliquées à vos documents."
     >
-      <LegalDocument updatedAt="13 septembre 2026" sections={sections} />
+      <LegalDocument updatedAt="26 septembre 2026" sections={sections} />
     </PublicPage>
   );
 }

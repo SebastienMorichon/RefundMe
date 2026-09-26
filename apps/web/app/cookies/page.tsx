@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalDocument, PublicPage } from "../../components/public-page";
+import { CookieSettingsButton } from "../../components/cookie-settings-button";
 
 export const metadata: Metadata = {
   title: "Politique relative aux cookies",
@@ -44,14 +45,16 @@ export default function CookiesPage() {
       content: (
         <>
           <p>
-            Aucun outil de mesure d’audience non essentiel n’est actuellement
-            activé.
+            Avec votre accord, Google Analytics 4 mesure la fréquentation des
+            pages publiques de Lydoc. Aucune balise d’audience n’est chargée
+            avant votre acceptation. Les pages du compte, des dossiers et de
+            l’administration ne sont pas mesurées.
           </p>
           <p>
-            Si un tel outil est ajouté, Lydoc recueillera le consentement avant
-            son activation, sauf configuration répondant strictement aux
-            critères d’exemption définis par la CNIL. La présente page et
-            l’interface de choix seront alors mises à jour.
+            Lydoc transmet à Google la page publique consultée sans les
+            paramètres de l’adresse. Ce choix est conservé pendant six mois,
+            puis redemandé. Les statistiques servent à comprendre la
+            fréquentation du site et ne sont pas rapprochées des dossiers.
           </p>
         </>
       ),
@@ -70,12 +73,18 @@ export default function CookiesPage() {
       id: "choix",
       title: "5. Vos choix",
       content: (
-        <p>
-          Vous pouvez configurer votre navigateur pour supprimer ou bloquer les
-          cookies. Le blocage des traceurs indispensables peut toutefois
-          empêcher la connexion ou le fonctionnement de certaines
-          fonctionnalités.
-        </p>
+        <>
+          <p>
+            Vous pouvez refuser la mesure d’audience ou retirer votre accord à
+            tout moment. Le refus n’empêche pas l’utilisation de Lydoc.
+          </p>
+          <p><CookieSettingsButton /></p>
+          <p>
+            Vous pouvez aussi configurer votre navigateur pour supprimer ou
+            bloquer les cookies. Le blocage des traceurs indispensables peut
+            empêcher la connexion ou certaines fonctionnalités.
+          </p>
+        </>
       ),
     },
     {
@@ -97,7 +106,7 @@ export default function CookiesPage() {
       description="Les traceurs utilisés aujourd’hui et les règles appliquées avant toute évolution."
     >
       <LegalDocument
-        updatedAt="2 août 2026 - version de pré-lancement"
+        updatedAt="26 septembre 2026"
         sections={sections}
       />
     </PublicPage>

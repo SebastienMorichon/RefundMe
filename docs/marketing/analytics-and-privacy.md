@@ -6,19 +6,10 @@ Le tableau de bord administrateur `/admin/marketing` calcule des statistiques ag
 
 Fenêtres disponibles : 7 jours, 28 jours et depuis le lancement. Pour les fenêtres temporelles, les conversions sont attribuées à la cohorte selon la date de création du compte.
 
-## Niveau 2 - mesure d'audience à configurer plus tard
+## Niveau 2 - mesure d'audience GA4 préparée localement
 
-Pour mesurer les visites et leur provenance, la recommandation est une instance Matomo séparée et auto-hébergée. Elle ne doit être activée qu'après vérification documentée de sa configuration juridique et technique.
+La balise Google Analytics 4 `G-ZTGGYREXDS` est préparée dans le site Web. Elle ne se charge que sur les pages publiques et après acceptation explicite. Le choix est redemandé après six mois. La mesure manuelle des pages supprime les paramètres d'URL et le référent. Les pages de compte, de dossier et d'administration ne doivent pas être mesurées. Les textes Cookies et Confidentialité ont été adaptés dans le code local.
 
-Principes minimaux :
+Avant publication, dans **Administration > Flux de données > Lydoc > Mesures améliorées**, désactiver les mesures améliorées (notamment les pages vues fondées sur l'historique du navigateur). Cette option est gérée dans GA4 et peut créer des événements automatiques indépendants du code de page vue manuel. Vérifier aussi que le partage des données, Google Signals et les fonctions publicitaires ne sont pas activés pour cette propriété si elles ne sont pas voulues.
 
-- pages publiques uniquement ;
-- aucune donnée personnelle, aucun identifiant de compte ou de dossier ;
-- aucune URL contenant un jeton ;
-- IP tronquée et données isolées ;
-- aucune publicité, heatmap, session recording ou recoupement avec la base clients ;
-- durées de traceur et de conservation bornées ;
-- information claire et mécanisme d'opposition ;
-- bascule vers un consentement explicite si l'exemption n'est pas démontrée.
-
-Les textes Cookies et Confidentialité doivent être mis à jour avant l'activation. La base applicative reste la source de vérité des conversions ; les données Matomo ne doivent pas être jointes aux comptes utilisateurs.
+Après publication, vérifier dans le navigateur : refus ou absence de choix = aucune requête vers `googletagmanager.com` ou `google-analytics.com` ; acceptation = visite publique visible dans le rapport Temps réel ; changement de choix = arrêt du chargement de la balise ; navigation vers une page privée = aucune balise. La base applicative reste la source de vérité des conversions et les données d'audience ne sont pas jointes aux comptes utilisateurs.

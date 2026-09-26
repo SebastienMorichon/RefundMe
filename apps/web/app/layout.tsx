@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { AnalyticsConsent } from "../components/analytics-consent";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -56,7 +57,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fr" data-scroll-behavior="smooth">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <AnalyticsConsent />
+      </body>
     </html>
   );
 }
