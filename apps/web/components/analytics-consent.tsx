@@ -105,30 +105,26 @@ export function AnalyticsConsent() {
     if (!loaded.current) {
       loaded.current = true;
       window.dataLayer = window.dataLayer || [];
-      window.gtag = (...args: unknown[]) => window.dataLayer?.push(args);
+      window.gtag = function gtag() {
+        window.dataLayer?.push(arguments);
+      };
+      window.gtag("js", new Date());
+      window.gtag("config", measurementId, {
+        send_page_view: false,
+        allow_google_signals: false,
+        allow_ad_personalization_signals: false,
+        page_location: window.location.origin + window.location.pathname,
+        page_referrer: "",
+      });
+      trackedPath.current = window.location.pathname;
+      window.gtag("event", "page_view", {
+        page_location: window.location.origin + window.location.pathname,
+        page_referrer: "",
+        page_title: document.title,
+      });
       const script = document.createElement("script");
       script.async = true;
       script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
-      script.onload = () => {
-        if (!isPublicPath(window.location.pathname)) {
-          window.location.replace(window.location.href);
-          return;
-        }
-        window.gtag?.("js", new Date());
-        window.gtag?.("config", measurementId, {
-          send_page_view: false,
-          allow_google_signals: false,
-          allow_ad_personalization_signals: false,
-          page_location: window.location.origin + window.location.pathname,
-          page_referrer: "",
-        });
-        trackedPath.current = window.location.pathname;
-        window.gtag?.("event", "page_view", {
-          page_location: window.location.origin + window.location.pathname,
-          page_referrer: "",
-          page_title: document.title,
-        });
-      };
       document.head.appendChild(script);
       return;
     }
